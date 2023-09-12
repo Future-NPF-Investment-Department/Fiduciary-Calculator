@@ -1,0 +1,3 @@
+[submodule "ref/RuDataApi"]
+	path = ref/RuDataApi
+	url = https://github.com/Future-NPF-Investment-Department/RuData-API-for-CSharp.git
