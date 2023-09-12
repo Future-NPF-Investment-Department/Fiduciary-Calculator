@@ -2,7 +2,7 @@
 
   <PropertyGroup>
     <TargetFramework>net7.0</TargetFramework>
-    <RootNamespace>Fiducuary_Calculator</RootNamespace>
+    <RootNamespace>FiduciaryCalculator</RootNamespace>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
   </PropertyGroup>
@@ -10,6 +10,11 @@
   <ItemGroup>
     <Folder Include="src\" />
     <Folder Include="ref\" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Efir.DataHub.Models" Version="1.0.230.2" />
+    <PackageReference Include="Microsoft.AspNet.WebApi.Client" Version="5.2.9" />
   </ItemGroup>
 
 </Project>
