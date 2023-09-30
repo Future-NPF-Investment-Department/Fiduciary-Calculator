@@ -17,30 +17,61 @@ namespace FiduciaryCalculator
             _efir = new EfirClient(creds);
         }
 
+        /// <summary>
+        ///     Calculates bond price for particular ISIN. 
+        /// </summary>
+        /// <param name="isin">Security ISIN.</param>
+        /// <param name="pricedate">Date of pricing. If null bond price is calculated as of today.</param>
+        /// <param name="ytm">Yield-to-maturity. If not specified gcurve rates will be used for discounting.</param>
+        /// <returns>Bond price</returns>
         public static async Task<double> CalculateBondPrice(string isin, DateTime? pricedate = null, double? ytm = null)
+        {
+            await ConnectEfir();
+            EfirSecurity sec = await _efir.GetEfirSecurityAsync(isin, true);
+            return await CalculateBondPrice(sec, pricedate, ytm);
+        }
+
+        /// <summary>
+        ///     Calculates bond price for provided <see cref="EfirSecurity"/>. 
+        /// </summary>
+        /// <param name="bond">Efir security (bond).</param>
+        /// <param name="pricedate">Date of pricing. If null bond price is calculated as of today.</param>
+        /// <param name="ytm">Yield-to-maturity. If not specified gcurve rates will be used for discounting.</param>
+        /// <exception cref="Exception"> is thrown if bond's <see cref="EfirSecurity.EventsSchedule"/> is null.</exception>
+        /// <returns>Bond price</returns>
+        public static async Task<double> CalculateBondPrice(EfirSecurity bond, DateTime? pricedate = null, double? ytm = null)
         {
             const EventType CPN = EventType.CPN;
             const EventType MTY = EventType.MTY;
+
+            if (bond.EventsSchedule is null)
+                throw new Exception("No bond schedule provided.");
+
             DateTime date = pricedate ?? DateTime.Now;
+            List<double> dfs = new();
 
-            await ConnectEfir();
-            EfirSecurity sec = await _efir.GetEfirSecurityAsync(isin, true);
-            List<SecurityEvent> events = sec.EventsSchedule!;
-            double[] dfs = new double[events.Count];
+            if (ytm is not null)
+                await ConnectEfir();
 
-            for (int i = 0; i < events.Count; i++)
+            foreach(var e in bond.EventsSchedule)
             {
-                if (events[i].PaymentType != CPN && events[i].PaymentType != MTY) continue;         // take only coupons and notional payments
-                double ttm = (events[i].EndDate!.Value - date).Days / 365.0;                        // calculate time-to-maturity
-                double dr = (ttm < .0) ? 0.0 : await _efir.CalculateGcurveForDateAsync(date, ttm);  // get discount rate
-                double pow = (ttm < .0) ? 1.0 : ttm;                                                // calculate power
-                double df = events[i].Payment / Math.Pow((1 + dr), pow);                            // calculate discounted flow
-                dfs[i] = df;
+                if (e.PaymentType != CPN && e.PaymentType != MTY) continue;                 // take only coupons and notional payments
+                double ttm = (e.EndDate!.Value - date).Days / 365.0;                        // calculate time-to-maturity
+                if (ttm < 0) continue;                                                      // go next if ttm is negative
+                double dr = ytm ?? await _efir.CalculateGcurveForDateAsync(date, ttm);      // get discount rate
+                double df = e.Payment / Math.Pow((1 + dr), ttm);                            // calculate discounted flow
+                dfs.Add(df);
             }
 
             return dfs.Sum();
         }
 
+
+
+
+        /// <summary>
+        ///     Connects to Efir Server if it is not connected.
+        /// </summary>
         private static async Task ConnectEfir()
         {
             if (!_efir.IsLoggedIn)            
