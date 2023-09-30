@@ -18,6 +18,42 @@ namespace FiduciaryCalculator
         }
 
         /// <summary>
+        ///     Shows Bond information.
+        /// </summary>
+        /// <param name="isin">Bond ISIN.</param>
+        public static async Task ShowSecurityInfo(string isin)
+        {
+            await ConnectEfir();
+            var sec = await _efir.GetEfirSecurityAsync(isin, true);
+            ShowSecurityInfo(sec);
+        }
+
+        /// <summary>
+        ///     Shows Bond information.
+        /// </summary>
+        /// <param name="bond">Efir security (bond)</param>
+        public static void ShowSecurityInfo(EfirSecurity bond)
+        {
+            Console.WriteLine(bond.AssetClass);
+            Console.WriteLine(bond.ShortName);
+            Console.WriteLine(bond.Isin);
+            Console.WriteLine(bond.IssuerName);
+            Console.WriteLine(bond.IssueSector);
+            Console.WriteLine();
+            Console.WriteLine($"Placement date: {bond.PlacementDate!.Value.ToShortDateString()}");
+            Console.WriteLine($"Maturity date: {bond.MaturityDate!.Value.ToShortDateString()}");
+            Console.WriteLine();
+            Console.WriteLine($"Coupon type: {bond.CouponType}");
+            Console.WriteLine($"Coupon period type: {bond.CouponPeriodType}");
+            Console.WriteLine($"First coupon start: {bond.FirstCouponStartDate}");
+            Console.WriteLine($"Coupon reference: {bond.CouponReferenceRateName}");
+            Console.WriteLine();
+            Console.WriteLine("FLOWS:");
+            foreach(var f in bond.EventsSchedule)
+                Console.WriteLine($"{f.PaymentType} - {f.StartDate.Value.ToShortDateString()} - {f.EndDate.Value.ToShortDateString()} - {f.PeriodLength} - {f.Rate} - {f.Payment}");
+        }
+
+        /// <summary>
         ///     Calculates bond price for particular ISIN. 
         /// </summary>
         /// <param name="isin">Security ISIN.</param>
@@ -65,9 +101,6 @@ namespace FiduciaryCalculator
 
             return dfs.Sum();
         }
-
-
-
 
         /// <summary>
         ///     Connects to Efir Server if it is not connected.
