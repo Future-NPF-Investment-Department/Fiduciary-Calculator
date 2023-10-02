@@ -107,6 +107,24 @@ namespace FiduciaryCalculator
             return dfs.Sum();
         }
 
+        /// <summary>
+        ///     Calculates bond's yield to maturity.
+        /// </summary>
+        /// <remarks>
+        ///     To calculate YTM Secant method is used. For more details see <see href="https://en.wikipedia.org/wiki/Secant_method">
+        ///         https://en.wikipedia.org/wiki/Secant_method
+        ///         </see>.
+        /// </remarks>
+        /// <param name="isin">Bond ISIN.</param>
+        /// <param name="pricedate">Date of pricing. If null bond's YTM is calculated as of today.</param>
+        /// <param name="price">Bond's target price that is used to calculate YTM. If null theretical bond's price is used obtained using g-curve for pricedate.</param>
+        /// <returns></returns>
+        public static async Task<double> CalculateBondYtmAsync(string isin, DateTime? pricedate = null, double? price = null)
+        {
+            await ConnectEfirAsync();
+            EfirSecurity sec = await _efir.GetEfirSecurityAsync(isin, true);
+            return await CalculateBondYtmAsync(sec, pricedate, price);
+        }
 
         /// <summary>
         ///     Calculates bond's yield to maturity.
@@ -116,9 +134,9 @@ namespace FiduciaryCalculator
         ///         https://en.wikipedia.org/wiki/Secant_method
         ///         </see>.
         /// </remarks>
-        /// <param name="bond"></param>
-        /// <param name="pricedate"></param>
-        /// <param name="price"></param>
+        /// <param name="bond">Efir security (bond).</param>
+        /// <param name="pricedate">Date of pricing. If null bond's YTM is calculated as of today.</param>
+        /// <param name="price">Bond's target price that is used to calculate YTM. If null theretical bond's price is used obtained using g-curve for pricedate.</param>
         /// <returns></returns>
         public static async Task<double> CalculateBondYtmAsync(EfirSecurity bond, DateTime? pricedate = null, double? price = null)
         {
