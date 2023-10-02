@@ -18,6 +18,11 @@ namespace FiduciaryCalculator
         }
 
         /// <summary>
+        ///     EfirClient instance that is used to connect to EFIR server.
+        /// </summary>
+        public static EfirClient EfirClient => _efir;
+
+        /// <summary>
         ///     Shows Bond information.
         /// </summary>
         /// <param name="isin">Bond ISIN.</param>
@@ -86,7 +91,7 @@ namespace FiduciaryCalculator
             DateTime date = pricedate ?? DateTime.Now;
             List<double> dfs = new();
 
-            if (ytm is not null)
+            if (ytm is null)
                 await ConnectEfir();
 
             foreach(var e in bond.EventsSchedule)
@@ -100,6 +105,37 @@ namespace FiduciaryCalculator
             }
 
             return dfs.Sum();
+        }
+
+
+        /// <summary>
+        ///     Calculates bond's yield to maturity.
+        /// </summary>
+        /// <remarks>
+        ///     To calculate YTM Secant method is used. For more details see <see href="https://en.wikipedia.org/wiki/Secant_method">
+        ///         https://en.wikipedia.org/wiki/Secant_method
+        ///         </see>.
+        /// </remarks>
+        /// <param name="bond"></param>
+        /// <param name="pricedate"></param>
+        /// <param name="price"></param>
+        /// <returns></returns>
+        public static async Task<double> CalculateBondYtm(EfirSecurity bond, DateTime? pricedate = null, double? price = null)
+        {
+            if (price is null) await ConnectEfir();
+            double targetPrice = price ?? await CalculateBondPrice(bond, pricedate);
+
+            double x0 = .05, x1 = .25, x2 = -1.0;
+            int i = 0;
+            while (Math.Abs(x0 - x2) > 1e-10)
+            {   
+                double fx0 = await CalculateBondPrice(bond, null, x0);
+                double fx1 = await CalculateBondPrice(bond, null, x1);
+                x2 = x1 - (fx1 - targetPrice) * (x1 - x0) / (fx1 - fx0);
+                x0 = x1;
+                x1 = x2;
+            }
+            return x2;
         }
 
         /// <summary>
