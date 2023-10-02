@@ -28,7 +28,7 @@ namespace FiduciaryCalculator
         /// <param name="isin">Bond ISIN.</param>
         public static async Task ShowSecurityInfo(string isin)
         {
-            await ConnectEfir();
+            await ConnectEfirAsync();
             var sec = await _efir.GetEfirSecurityAsync(isin, true);
             ShowSecurityInfo(sec);
         }
@@ -65,11 +65,11 @@ namespace FiduciaryCalculator
         /// <param name="pricedate">Date of pricing. If null bond price is calculated as of today.</param>
         /// <param name="ytm">Yield-to-maturity. If not specified gcurve rates will be used for discounting.</param>
         /// <returns>Bond price</returns>
-        public static async Task<double> CalculateBondPrice(string isin, DateTime? pricedate = null, double? ytm = null)
+        public static async Task<double> CalculateBondPriceAsync(string isin, DateTime? pricedate = null, double? ytm = null)
         {
-            await ConnectEfir();
+            await ConnectEfirAsync();
             EfirSecurity sec = await _efir.GetEfirSecurityAsync(isin, true);
-            return await CalculateBondPrice(sec, pricedate, ytm);
+            return await CalculateBondPriceAsync(sec, pricedate, ytm);
         }
 
         /// <summary>
@@ -80,7 +80,7 @@ namespace FiduciaryCalculator
         /// <param name="ytm">Yield-to-maturity. If not specified gcurve rates will be used for discounting.</param>
         /// <exception cref="Exception"> is thrown if bond's <see cref="EfirSecurity.EventsSchedule"/> is null.</exception>
         /// <returns>Bond price</returns>
-        public static async Task<double> CalculateBondPrice(EfirSecurity bond, DateTime? pricedate = null, double? ytm = null)
+        public static async Task<double> CalculateBondPriceAsync(EfirSecurity bond, DateTime? pricedate = null, double? ytm = null)
         {
             const EventType CPN = EventType.CPN;
             const EventType MTY = EventType.MTY;
@@ -92,7 +92,7 @@ namespace FiduciaryCalculator
             List<double> dfs = new();
 
             if (ytm is null)
-                await ConnectEfir();
+                await ConnectEfirAsync();
 
             foreach(var e in bond.EventsSchedule)
             {
@@ -120,17 +120,16 @@ namespace FiduciaryCalculator
         /// <param name="pricedate"></param>
         /// <param name="price"></param>
         /// <returns></returns>
-        public static async Task<double> CalculateBondYtm(EfirSecurity bond, DateTime? pricedate = null, double? price = null)
+        public static async Task<double> CalculateBondYtmAsync(EfirSecurity bond, DateTime? pricedate = null, double? price = null)
         {
-            if (price is null) await ConnectEfir();
-            double targetPrice = price ?? await CalculateBondPrice(bond, pricedate);
+            if (price is null) await ConnectEfirAsync();
+            double targetPrice = price ?? await CalculateBondPriceAsync(bond, pricedate);
 
             double x0 = .05, x1 = .25, x2 = -1.0;
-            int i = 0;
             while (Math.Abs(x0 - x2) > 1e-10)
             {   
-                double fx0 = await CalculateBondPrice(bond, null, x0);
-                double fx1 = await CalculateBondPrice(bond, null, x1);
+                double fx0 = await CalculateBondPriceAsync(bond, null, x0);
+                double fx1 = await CalculateBondPriceAsync(bond, null, x1);
                 x2 = x1 - (fx1 - targetPrice) * (x1 - x0) / (fx1 - fx0);
                 x0 = x1;
                 x1 = x2;
@@ -141,7 +140,7 @@ namespace FiduciaryCalculator
         /// <summary>
         ///     Connects to Efir Server if it is not connected.
         /// </summary>
-        private static async Task ConnectEfir()
+        private static async Task ConnectEfirAsync()
         {
             if (!_efir.IsLoggedIn)            
                 await _efir.LoginAsync();            
