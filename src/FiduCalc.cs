@@ -1,4 +1,6 @@
-﻿using RuDataAPI;
+﻿#pragma warning disable IDE1006 // Naming Styles
+
+using RuDataAPI;
 using RuDataAPI.Extensions;
 
 namespace FiduciaryCalculator
@@ -54,9 +56,13 @@ namespace FiduciaryCalculator
             Console.WriteLine($"First coupon start: {bond.FirstCouponStartDate}");
             Console.WriteLine($"Coupon reference: {bond.CouponReferenceRateName}");
             Console.WriteLine();
+
+            if (bond.EventsSchedule is null)
+                return;
+
             Console.WriteLine("FLOWS:");
             foreach(var f in bond.EventsSchedule)
-                Console.WriteLine($"{f.PaymentType} - {f.StartDate.Value.ToShortDateString()} - {f.EndDate.Value.ToShortDateString()} - {f.PeriodLength} - {f.Rate} - {f.Payment}");
+                Console.WriteLine($"{f.PaymentType} - {f.StartDate!.Value.ToShortDateString()} - {f.EndDate!.Value.ToShortDateString()} - {f.PeriodLength} - {f.Rate} - {f.Payment}");
         }
 
         /// <summary>
@@ -105,6 +111,14 @@ namespace FiduciaryCalculator
             return dfs.Sum();
         }
 
+        /// <summary>
+        ///     Calculates bond price for provided <see cref="EfirSecurity"/> using Z-Spread. 
+        /// </summary>
+        /// <param name="bond">Efir security (bond).</param>
+        /// <param name="zspread">Z-Spread value.</param>
+        /// <param name="pricedate">Date of pricing. If null bond price is calculated as of today.</param>
+        /// <exception cref="Exception"> is thrown if bond's <see cref="EfirSecurity.EventsSchedule"/> is null.</exception>
+        /// <returns>Bond price</returns>
         public static async Task<double> CalculateBondPriceAsync(EfirSecurity bond, double zspread, DateTime? pricedate = null)
         {
             if (bond.EventsSchedule is null)
@@ -139,7 +153,7 @@ namespace FiduciaryCalculator
         /// <param name="isin">Bond ISIN.</param>
         /// <param name="pricedate">Date of pricing. If null bond's YTM is calculated as of today.</param>
         /// <param name="price">Bond's target price that is used to calculate YTM. If null theretical bond's price is used obtained using g-curve for pricedate.</param>
-        /// <returns></returns>
+        /// <returns>Bond's YTM value.</returns>
         public static async Task<double> CalculateBondYtmAsync(string isin, DateTime? pricedate = null, double? price = null)
         {
             await ConnectEfirAsync();
@@ -158,7 +172,7 @@ namespace FiduciaryCalculator
         /// <param name="bond">Efir security (bond).</param>
         /// <param name="pricedate">Date of pricing. If null bond's YTM is calculated as of today.</param>
         /// <param name="price">Bond's target price that is used to calculate YTM. If null theretical bond's price is used obtained using g-curve for pricedate.</param>
-        /// <returns></returns>
+        /// <returns>Bond's YTM value.</returns>
         public static async Task<double> CalculateBondYtmAsync(EfirSecurity bond, DateTime? pricedate = null, double? price = null)
         {
             if (price is null) await ConnectEfirAsync();
@@ -176,6 +190,13 @@ namespace FiduciaryCalculator
             return x2;
         }
 
+        /// <summary>
+        ///     Calculates bond duration at date.
+        /// </summary>
+        /// <param name="isin">Bond's ISIN code.</param>
+        /// <param name="pricedate">Date of pricing. If null bond's duration is calculated as of today.</param>
+        /// <param name="price">Bond's target price that is used to calculate duration. If null theretical bond's price is used obtained using g-curve for pricedate.</param>
+        /// <returns>Bond's duration value.</returns>
         public static async Task<double> CalculateBondDurationAsync(string isin, DateTime? pricedate = null, double? price = null)
         {
             await ConnectEfirAsync();
@@ -183,6 +204,13 @@ namespace FiduciaryCalculator
             return await CalculateBondDurationAsync(sec, pricedate, price);
         }
 
+        /// <summary>
+        ///     Calculates bond duration at date.
+        /// </summary>
+        /// <param name="bond"><see cref="EfirSecurity"/> that represents a bond.</param>
+        /// <param name="pricedate">Date of pricing. If null bond's duration is calculated as of today.</param>
+        /// <param name="price">Bond's target price that is used to calculate duration. If null theretical bond's price is used obtained using g-curve for pricedate.</param>
+        /// <returns>Bond's duration value.</returns>
         public static async Task<double> CalculateBondDurationAsync(EfirSecurity bond, DateTime? pricedate = null, double? price = null)
         {
             if (price is null) await ConnectEfirAsync();
@@ -207,7 +235,13 @@ namespace FiduciaryCalculator
             return dfs.Sum() / targetPrice;
         }
 
-
+        /// <summary>
+        ///     Calculates G-Spread for a bond at date.
+        /// </summary>
+        /// <param name="isin">Bond's ISIN code.</param>
+        /// <param name="pricedate">Date of pricing. If null bond's duration is calculated as of today.</param>
+        /// <param name="ytm">Known in advance bond's YTM that is used to calculate G-Spread. If null theretical bond's YTM is calculated </param>
+        /// <returns>Bond's G-Spread value.</returns>
         public static async Task<double> CalculateGSpreadAsync(string isin, DateTime? pricedate = null, double? ytm = null)
         {
             await ConnectEfirAsync();
@@ -215,6 +249,13 @@ namespace FiduciaryCalculator
             return await CalculateGSpreadAsync(sec, pricedate, ytm);
         }
 
+        /// <summary>
+        ///     Calculates G-Spread for a bond at date.
+        /// </summary>
+        /// <param name="bond"><see cref="EfirSecurity"/> that represents a bond.</param>
+        /// <param name="pricedate">Date of pricing. If null bond's duration is calculated as of today.</param>
+        /// <param name="ytm">Known in advance bond's YTM that is used to calculate G-Spread. If null theretical bond's YTM is calculated.</param>
+        /// <returns>Bond's G-Spread value.</returns>
         public static async Task<double> CalculateGSpreadAsync(EfirSecurity bond, DateTime? pricedate = null, double? ytm = null)
         {
             pricedate ??= DateTime.Now;
@@ -226,6 +267,13 @@ namespace FiduciaryCalculator
             return (ytm!.Value - gcurve) * 10000;
         }
 
+        /// <summary>
+        ///     Calculates Z-Spread for a bond at date.
+        /// </summary>
+        /// <param name="isin">Bond's ISIN code.</param>
+        /// <param name="pricedate">Date of pricing. If null bond's duration is calculated as of today.</param>
+        /// <param name="price">Known in advance bond's price that is used to calculate G-Spread. If null theretical bond's price is calculated and used to calculate Z-Spread.</param>
+        /// <returns>Bond's Z-Spread value.</returns>
         public static async Task<double> CalculateZSpreadAsync(string isin, DateTime? pricedate = null, double? price = null)
         {
             await ConnectEfirAsync();
@@ -233,6 +281,13 @@ namespace FiduciaryCalculator
             return await CalculateGSpreadAsync(sec, pricedate, price);
         }
 
+        /// <summary>
+        ///     Calculates Z-Spread for a bond at date.
+        /// </summary>
+        /// <param name="bond"><see cref="EfirSecurity"/> that represents a bond.</param>
+        /// <param name="pricedate">Date of pricing. If null bond's duration is calculated as of today.</param>
+        /// <param name="price">Known in advance bond's price that is used to calculate G-Spread. If null theretical bond's price is calculated and used to calculate Z-Spread.</param>
+        /// <returns>Bond's Z-Spread value.</returns>
         public static async Task<double> CalculateZSpreadAsync(EfirSecurity bond, DateTime? pricedate = null, double? price = null)
         {
             if (price is null) await ConnectEfirAsync();
