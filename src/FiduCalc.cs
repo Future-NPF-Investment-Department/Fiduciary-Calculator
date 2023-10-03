@@ -105,7 +105,7 @@ namespace FiduciaryCalculator
             return dfs.Sum();
         }
 
-        public static async Task<double> CalculateBondPriceAsync(EfirSecurity bond, int zspread, DateTime? pricedate = null)
+        public static async Task<double> CalculateBondPriceAsync(EfirSecurity bond, double zspread, DateTime? pricedate = null)
         {
             if (bond.EventsSchedule is null)
                 throw new Exception("No bond schedule provided.");
@@ -120,7 +120,7 @@ namespace FiduciaryCalculator
                 if (e.PaymentType != CPN && e.PaymentType != MTY) continue;                         // take only coupons and notional payments
                 double ttm = (e.EndDate!.Value - date).Days / 365.0;                                // calculate time-to-maturity
                 if (ttm < 0) continue;                                                              // go next if ttm is negative
-                double dr = await _efir.CalculateGcurveForDateAsync(date, ttm) + zspread / 10000.0; // get discount rate
+                double dr = await _efir.CalculateGcurveForDateAsync(date, ttm) + zspread / 10000;   // get discount rate
                 double df = e.Payment / Math.Pow((1 + dr), ttm);                                    // calculate discounted flow
                 dfs.Add(df);
             }
@@ -162,7 +162,7 @@ namespace FiduciaryCalculator
         public static async Task<double> CalculateBondYtmAsync(EfirSecurity bond, DateTime? pricedate = null, double? price = null)
         {
             if (price is null) await ConnectEfirAsync();
-            double targetPrice = price ?? await CalculateBondPriceAsync(bond, pricedate);
+            double targetPrice = price ?? await CalculateBondPriceAsync(bond, pricedate, null);
 
             double x0 = .05, x1 = .25, x2 = -1.0;
             while (Math.Abs(x0 - x2) > 1e-10)
@@ -215,7 +215,7 @@ namespace FiduciaryCalculator
             return await CalculateGSpreadAsync(sec, pricedate, ytm);
         }
 
-        public static async Task<int> CalculateGSpreadAsync(EfirSecurity bond, DateTime? pricedate = null, double? ytm = null)
+        public static async Task<double> CalculateGSpreadAsync(EfirSecurity bond, DateTime? pricedate = null, double? ytm = null)
         {
             pricedate ??= DateTime.Now;
             double price = await CalculateBondPriceAsync(bond, pricedate, ytm);
@@ -223,8 +223,10 @@ namespace FiduciaryCalculator
             double dur = await CalculateBondDurationAsync(bond, pricedate, price);
             await ConnectEfirAsync();
             double gcurve = await _efir.CalculateGcurveForDateAsync(pricedate!.Value, dur);
-            return (int)((ytm!.Value - gcurve) * 10000);
+            return (ytm!.Value - gcurve) * 10000;
         }
+
+        
 
         /// <summary>
         ///     Connects to Efir Server if it is not connected.
