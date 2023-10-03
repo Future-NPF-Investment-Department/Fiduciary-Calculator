@@ -105,6 +105,29 @@ namespace FiduciaryCalculator
             return dfs.Sum();
         }
 
+        public static async Task<double> CalculateBondPriceAsync(EfirSecurity bond, int zspread, DateTime? pricedate = null)
+        {
+            if (bond.EventsSchedule is null)
+                throw new Exception("No bond schedule provided.");
+
+            DateTime date = pricedate ?? DateTime.Now;
+            List<double> dfs = new();
+
+            await ConnectEfirAsync();
+
+            foreach (var e in bond.EventsSchedule)
+            {
+                if (e.PaymentType != CPN && e.PaymentType != MTY) continue;                         // take only coupons and notional payments
+                double ttm = (e.EndDate!.Value - date).Days / 365.0;                                // calculate time-to-maturity
+                if (ttm < 0) continue;                                                              // go next if ttm is negative
+                double dr = await _efir.CalculateGcurveForDateAsync(date, ttm) + zspread / 10000.0; // get discount rate
+                double df = e.Payment / Math.Pow((1 + dr), ttm);                                    // calculate discounted flow
+                dfs.Add(df);
+            }
+
+            return dfs.Sum();
+        }
+
         /// <summary>
         ///     Calculates bond's yield to maturity.
         /// </summary>
