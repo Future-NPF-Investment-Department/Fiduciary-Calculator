@@ -226,7 +226,29 @@ namespace FiduciaryCalculator
             return (ytm!.Value - gcurve) * 10000;
         }
 
-        
+        public static async Task<double> CalculateZSpreadAsync(string isin, DateTime? pricedate = null, double? price = null)
+        {
+            await ConnectEfirAsync();
+            EfirSecurity sec = await _efir.GetEfirSecurityAsync(isin, true);
+            return await CalculateGSpreadAsync(sec, pricedate, price);
+        }
+
+        public static async Task<double> CalculateZSpreadAsync(EfirSecurity bond, DateTime? pricedate = null, double? price = null)
+        {
+            if (price is null) await ConnectEfirAsync();
+            double targetPrice = price ?? await CalculateBondPriceAsync(bond, pricedate, null);
+
+            double x0 = -100.0, x1 = 500.0, x2 = -1;
+            while (Math.Abs(x0 - x2) > 0.1)
+            {
+                double fx0 = await CalculateBondPriceAsync(bond, x0, pricedate);
+                double fx1 = await CalculateBondPriceAsync(bond, x1, pricedate);
+                x2 = x1 - (fx1 - targetPrice) * (x1 - x0) / (fx1 - fx0);
+                x0 = x1;
+                x1 = x2;
+            }
+            return x2;
+        }
 
         /// <summary>
         ///     Connects to Efir Server if it is not connected.
