@@ -9,7 +9,8 @@ namespace FiduciaryCalculator
     public static class FiduCalс
     {
         private static readonly EfirClient _efir = null!;
-
+        private const EventType CPN = EventType.CPN;
+        private const EventType MTY = EventType.MTY;
         static FiduCalс()
         {
             if (!File.Exists("EfirCredentials.json")) throw new FileNotFoundException("Cannot find file: EfirCredentials.json", "EfirCredentials.json");
@@ -82,9 +83,6 @@ namespace FiduciaryCalculator
         /// <returns>Bond price</returns>
         public static async Task<double> CalculateBondPriceAsync(EfirSecurity bond, DateTime? pricedate = null, double? ytm = null)
         {
-            const EventType CPN = EventType.CPN;
-            const EventType MTY = EventType.MTY;
-
             if (bond.EventsSchedule is null)
                 throw new Exception("No bond schedule provided.");
 
@@ -153,6 +151,31 @@ namespace FiduciaryCalculator
                 x1 = x2;
             }
             return x2;
+        }
+
+
+        public static async Task<double> CalculateBondDurationAsync(EfirSecurity bond, DateTime? pricedate = null, double? price = null)
+        {
+            if (price is null) await ConnectEfirAsync();
+            double targetPrice = price ?? await CalculateBondPriceAsync(bond, pricedate, null);
+            
+            if (bond.EventsSchedule is null)
+                throw new Exception("No bond schedule provided.");
+
+            DateTime date = pricedate ?? DateTime.Now;
+            List<double> dfs = new();
+
+            foreach (var e in bond.EventsSchedule)
+            {
+                if (e.PaymentType != CPN && e.PaymentType != MTY) continue;                 // take only coupons and notional payments
+                double ttm = (e.EndDate!.Value - date).Days / 365.0;                        // calculate time-to-maturity
+                if (ttm < 0) continue;                                                      // go next if ttm is negative
+                double dr = await _efir.CalculateGcurveForDateAsync(date, ttm);             // get discount rate
+                double df = e.Payment / Math.Pow((1 + dr), ttm) * ttm;                      // calculate discounted flow
+                dfs.Add(df);
+            }
+
+            return dfs.Sum() / targetPrice;
         }
 
         /// <summary>
