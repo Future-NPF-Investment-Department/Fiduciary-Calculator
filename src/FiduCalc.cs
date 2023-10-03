@@ -153,6 +153,12 @@ namespace FiduciaryCalculator
             return x2;
         }
 
+        public static async Task<double> CalculateBondDurationAsync(string isin, DateTime? pricedate = null, double? price = null)
+        {
+            await ConnectEfirAsync();
+            EfirSecurity sec = await _efir.GetEfirSecurityAsync(isin, true);
+            return await CalculateBondDurationAsync(sec, pricedate, price);
+        }
 
         public static async Task<double> CalculateBondDurationAsync(EfirSecurity bond, DateTime? pricedate = null, double? price = null)
         {
