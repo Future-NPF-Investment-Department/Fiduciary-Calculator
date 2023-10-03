@@ -184,6 +184,25 @@ namespace FiduciaryCalculator
             return dfs.Sum() / targetPrice;
         }
 
+
+        public static async Task<double> CalculateGSpreadAsync(string isin, DateTime? pricedate = null, double? ytm = null)
+        {
+            await ConnectEfirAsync();
+            EfirSecurity sec = await _efir.GetEfirSecurityAsync(isin, true);
+            return await CalculateGSpreadAsync(sec, pricedate, ytm);
+        }
+
+        public static async Task<int> CalculateGSpreadAsync(EfirSecurity bond, DateTime? pricedate = null, double? ytm = null)
+        {
+            pricedate ??= DateTime.Now;
+            double price = await CalculateBondPriceAsync(bond, pricedate, ytm);
+            ytm ??= await CalculateBondYtmAsync(bond, pricedate, price);
+            double dur = await CalculateBondDurationAsync(bond, pricedate, price);
+            await ConnectEfirAsync();
+            double gcurve = await _efir.CalculateGcurveForDateAsync(pricedate!.Value, dur);
+            return (int)((ytm!.Value - gcurve) * 10000);
+        }
+
         /// <summary>
         ///     Connects to Efir Server if it is not connected.
         /// </summary>
