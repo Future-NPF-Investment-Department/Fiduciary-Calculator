@@ -1,7 +1,10 @@
 ﻿#pragma warning disable IDE1006 // Naming Styles
 
+using Efir.DataHub.Models.Models.Bond;
 using RuDataAPI;
 using RuDataAPI.Extensions;
+using RuDataAPI.Extensions.Mapping;
+using ConsoleTables;
 
 namespace FiduciaryCalculator
 {
@@ -11,8 +14,8 @@ namespace FiduciaryCalculator
     public static class FiduCalс
     {
         private static readonly EfirClient _efir = null!;
-        private const EventType CPN = EventType.CPN;
-        private const EventType MTY = EventType.MTY;
+        private const SecurityFlow CPN = SecurityFlow.CPN;
+        private const SecurityFlow MTY = SecurityFlow.MTY;
         static FiduCalс()
         {
             if (!File.Exists("EfirCredentials.json")) throw new FileNotFoundException("Cannot find file: EfirCredentials.json", "EfirCredentials.json");
@@ -32,7 +35,7 @@ namespace FiduciaryCalculator
         public static async Task ShowSecurityInfo(string isin)
         {
             await ConnectEfirAsync();
-            var sec = await _efir.GetEfirSecurityAsync(isin, true);
+            var sec = await _efir.ExGetEfirSecurityAsync(isin, true);
             ShowSecurityInfo(sec);
         }
 
@@ -75,7 +78,7 @@ namespace FiduciaryCalculator
         public static async Task<double> CalculateBondPriceAsync(string isin, DateTime? pricedate = null, double? ytm = null)
         {
             await ConnectEfirAsync();
-            EfirSecurity sec = await _efir.GetEfirSecurityAsync(isin, true);
+            EfirSecurity sec = await _efir.ExGetEfirSecurityAsync(isin, true);
             return await CalculateBondPriceAsync(sec, pricedate, ytm);
         }
 
@@ -100,10 +103,10 @@ namespace FiduciaryCalculator
 
             foreach(var e in bond.EventsSchedule)
             {
-                if (e.PaymentType != CPN && e.PaymentType != MTY) continue;                 // take only coupons and notional payments
+                //if (e.PaymentType != CPN && e.PaymentType != MTY) continue;                 // take only coupons and notional payments
                 double ttm = (e.EndDate!.Value - date).Days / 365.0;                        // calculate time-to-maturity
                 if (ttm < 0) continue;                                                      // go next if ttm is negative
-                double dr = ytm ?? await _efir.CalculateGcurveForDateAsync(date, ttm);      // get discount rate
+                double dr = ytm ?? await _efir.ExCalculateGcurveForDateAsync(date, ttm);      // get discount rate
                 double df = e.Payment / Math.Pow((1 + dr), ttm);                            // calculate discounted flow
                 dfs.Add(df);
             }
@@ -131,10 +134,10 @@ namespace FiduciaryCalculator
 
             foreach (var e in bond.EventsSchedule)
             {
-                if (e.PaymentType != CPN && e.PaymentType != MTY) continue;                         // take only coupons and notional payments
+                //if (e.PaymentType != CPN && e.PaymentType != MTY) continue;                         // take only coupons and notional payments
                 double ttm = (e.EndDate!.Value - date).Days / 365.0;                                // calculate time-to-maturity
                 if (ttm < 0) continue;                                                              // go next if ttm is negative
-                double dr = await _efir.CalculateGcurveForDateAsync(date, ttm) + zspread / 10000;   // get discount rate
+                double dr = await _efir.ExCalculateGcurveForDateAsync(date, ttm) + zspread / 10000;   // get discount rate
                 double df = e.Payment / Math.Pow((1 + dr), ttm);                                    // calculate discounted flow
                 dfs.Add(df);
             }
@@ -157,7 +160,7 @@ namespace FiduciaryCalculator
         public static async Task<double> CalculateBondYtmAsync(string isin, DateTime? pricedate = null, double? price = null)
         {
             await ConnectEfirAsync();
-            EfirSecurity sec = await _efir.GetEfirSecurityAsync(isin, true);
+            EfirSecurity sec = await _efir.ExGetEfirSecurityAsync(isin, true);
             return await CalculateBondYtmAsync(sec, pricedate, price);
         }
 
@@ -200,7 +203,7 @@ namespace FiduciaryCalculator
         public static async Task<double> CalculateBondDurationAsync(string isin, DateTime? pricedate = null, double? price = null)
         {
             await ConnectEfirAsync();
-            EfirSecurity sec = await _efir.GetEfirSecurityAsync(isin, true);
+            EfirSecurity sec = await _efir.ExGetEfirSecurityAsync(isin, true);
             return await CalculateBondDurationAsync(sec, pricedate, price);
         }
 
@@ -227,7 +230,7 @@ namespace FiduciaryCalculator
                 if (e.PaymentType != CPN && e.PaymentType != MTY) continue;                 // take only coupons and notional payments
                 double ttm = (e.EndDate!.Value - date).Days / 365.0;                        // calculate time-to-maturity
                 if (ttm < 0) continue;                                                      // go next if ttm is negative
-                double dr = await _efir.CalculateGcurveForDateAsync(date, ttm);             // get discount rate
+                double dr = await _efir.ExCalculateGcurveForDateAsync(date, ttm);             // get discount rate
                 double df = e.Payment / Math.Pow((1 + dr), ttm) * ttm;                      // calculate discounted flow
                 dfs.Add(df);
             }
@@ -245,7 +248,7 @@ namespace FiduciaryCalculator
         public static async Task<double> CalculateGSpreadAsync(string isin, DateTime? pricedate = null, double? ytm = null)
         {
             await ConnectEfirAsync();
-            EfirSecurity sec = await _efir.GetEfirSecurityAsync(isin, true);
+            EfirSecurity sec = await _efir.ExGetEfirSecurityAsync(isin, true);
             return await CalculateGSpreadAsync(sec, pricedate, ytm);
         }
 
@@ -263,7 +266,7 @@ namespace FiduciaryCalculator
             ytm ??= await CalculateBondYtmAsync(bond, pricedate, price);
             double dur = await CalculateBondDurationAsync(bond, pricedate, price);
             await ConnectEfirAsync();
-            double gcurve = await _efir.CalculateGcurveForDateAsync(pricedate!.Value, dur);
+            double gcurve = await _efir.ExCalculateGcurveForDateAsync(pricedate!.Value, dur);
             return (ytm!.Value - gcurve) * 10000;
         }
 
@@ -277,7 +280,7 @@ namespace FiduciaryCalculator
         public static async Task<double> CalculateZSpreadAsync(string isin, DateTime? pricedate = null, double? price = null)
         {
             await ConnectEfirAsync();
-            EfirSecurity sec = await _efir.GetEfirSecurityAsync(isin, true);
+            EfirSecurity sec = await _efir.ExGetEfirSecurityAsync(isin, true);
             return await CalculateGSpreadAsync(sec, pricedate, price);
         }
 
@@ -304,6 +307,144 @@ namespace FiduciaryCalculator
             }
             return x2;
         }
+
+
+        public static async Task ShowAnalogs(EfirSecQueryDetails query)
+        {
+            await ConnectEfirAsync();
+            var analogs = await _efir.ExFindAnalogsAsync(query);
+            var isins = analogs.Select(a => a.Isin!).ToArray();
+
+            var allflows = await _efir.GetEventsCalendarAsync(isins);
+
+
+            var svod = new ConsoleTable("ISIN", "Issue", "Placement", "Maturity", "Ratiting BIG3", "Raiting RU", "Mkt. Price", "Th. Price", "YTM", "Duration", "G-Spread", "Z-Spread");
+
+            for (int i = 0; i < isins.Length; i++)
+            {
+                analogs[i].EventsSchedule = GetFlowsForPricing(allflows, analogs[i].Isin!, out bool isBad);
+                if (isBad) continue;
+
+
+                var eod = await _efir.EndOfDay(analogs[i].Isin, new DateTime(2023, 12, 22));
+                if (eod.last is null || eod.facevalue is null) continue;
+                
+
+                var price = (double)(eod.last / 100m * eod.facevalue) + ((double?)eod.accruedint ?? default);   // <---------------------------------------------  НАДО ДОБАВИТЬ НКД
+
+                Console.WriteLine($"{analogs[i].Isin}\t{analogs[i].ShortName}");
+
+
+                var ytm = await CalculateBondYtmAsync(analogs[i], new DateTime(2023, 12, 22), price);
+                var zspread = await CalculateZSpreadAsync(analogs[i], new DateTime(2023, 12, 22), price); // analogs[i].PlacementDate, 1000
+                var gspread = await CalculateGSpreadAsync(analogs[i], new DateTime(2023, 12, 22), ytm);
+                var duration = await CalculateBondDurationAsync(analogs[i], new DateTime(2023, 12, 22), price);
+                var tprice = await CalculateBondPriceAsync(analogs[i], new DateTime(2023, 12, 22), null);
+                
+                var table = new ConsoleTable("Type", "Start", "End", "Rate", "Flow");
+                foreach ( var e in analogs[i].EventsSchedule!)
+                    table.AddRow(e.PaymentType, e.StartDate?.ToShortDateString(), e.EndDate?.ToShortDateString(), e.Rate, e.Payment);
+
+
+                table.Write(Format.Minimal);
+                Console.WriteLine();
+
+
+                //svod.Configure(r => r.NumberAlignment = Alignment.Right);
+                svod.AddRow(analogs[i].Isin!, eod.secname_e, analogs[i].PlacementDate?.ToShortDateString(),
+                    analogs[i].MaturityDate?.ToShortDateString(), analogs[i].RatingAggregated.ToShortStringBig3(), analogs[i].RatingAggregated.ToShortStringRu(), price, string.Format("{0:0.00}", tprice), string.Format("{0:0.00%}", ytm), 
+                    string.Format("{0:0.00}", duration), string.Format("{0:0}", gspread), string.Format("{0:0}", zspread));
+            }
+
+            svod.Configure(r => r.NumberAlignment = Alignment.Right).Write(Format.Minimal);
+            
+        }
+
+
+        private static string[] CheckBadIsins(List<SecurityEvent> timetable)
+        {
+            return timetable.Where(t => t.EndDate is null).Select(t => t.Isin).ToArray();
+        }
+
+        private static List<SecurityEvent> GetFlowsForPricing(TimeTableV2Fields[] events, string isin, out bool isBad)
+        {
+            var flows = events
+                .Select(e => new SecurityEvent(e))
+                .Where(fl => fl.Isin == isin)
+                .Where(e => e.PaymentType is not SecurityFlow.CALL)
+                .Where(e => e.PaymentType is not SecurityFlow.CONV)
+                .Where(e => e.PaymentType is not SecurityFlow.DIV)                
+                .ToList();
+
+            isBad = flows.Any(f => f.EndDate is null);
+
+            DateTime? lastNonZeroCouponDate = flows
+                .Where(e => e.PaymentType is SecurityFlow.CPN)
+                .Where(e => e.Payment != 0)
+                .Max(e => e.EndDate);
+
+            foreach (var flow in flows)
+            {
+                if (flow.PaymentType is SecurityFlow.PUT && flow.EndDate < lastNonZeroCouponDate)
+                {
+                    flow.Rate = default;
+                    flow.Payment = default;
+                }
+
+                if (flow.EndDate > lastNonZeroCouponDate)
+                {
+                    flow.Rate = default;
+                    flow.Payment = default;
+                }
+            }
+            return flows;
+        }
+
+
+        private static List<SecurityEvent> GetFlowsForPricing2(TimeTableV2Fields[] events, string isin, out bool isBad)
+        {
+            var flows = events
+                .Select(e => new SecurityEvent(e))
+                .Where(fl => fl.Isin == isin)
+                .Where(e => e.PaymentType is not SecurityFlow.CALL)
+                .Where(e => e.PaymentType is not SecurityFlow.CONV)
+                .Where(e => e.PaymentType is not SecurityFlow.DIV)
+                .ToList();
+
+            isBad = flows.Any(f => f.EndDate is null);
+
+            DateTime firstCpnEndDate = (DateTime)flows
+                .Where(f => f.PaymentType == SecurityFlow.CPN)
+                .Min(f => f.EndDate)!;
+
+            DateTime? comingOffer = flows
+                .Where(f => f.PaymentType == SecurityFlow.PUT)
+                .Where(f => f.EndDate <= firstCpnEndDate)
+                .Min(f => f.EndDate);
+
+
+            DateTime? lastNonZeroCouponDate = flows
+                .Where(e => e.PaymentType is SecurityFlow.CPN)
+                .Where(e => e.Payment != 0)
+                .Max(e => e.EndDate);
+
+            foreach (var flow in flows)
+            {
+                if (flow.PaymentType is SecurityFlow.PUT && flow.EndDate < lastNonZeroCouponDate)
+                {
+                    flow.Rate = default;
+                    flow.Payment = default;
+                }
+
+                if (flow.EndDate > comingOffer)
+                {
+                    flow.Rate = default;
+                    flow.Payment = default;
+                }
+            }
+            return flows;
+        }
+
 
         /// <summary>
         ///     Connects to Efir Server if it is not connected.
