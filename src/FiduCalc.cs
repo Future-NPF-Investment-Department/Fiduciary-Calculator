@@ -5,6 +5,7 @@ using RuDataAPI;
 using RuDataAPI.Extensions;
 using RuDataAPI.Extensions.Mapping;
 using ConsoleTables;
+using static System.Runtime.InteropServices.JavaScript.JSType;
 
 namespace FiduciaryCalculator
 {
@@ -14,8 +15,8 @@ namespace FiduciaryCalculator
     public static class FiduCalс
     {
         private static readonly EfirClient _efir = null!;
-        private const SecurityFlow CPN = SecurityFlow.CPN;
-        private const SecurityFlow MTY = SecurityFlow.MTY;
+        private const FlowType CPN = FlowType.CPN;
+        private const FlowType MTY = FlowType.MTY;
         static FiduCalс()
         {
             if (!File.Exists("EfirCredentials.json")) throw new FileNotFoundException("Cannot find file: EfirCredentials.json", "EfirCredentials.json");
@@ -29,46 +30,6 @@ namespace FiduciaryCalculator
         public static EfirClient EfirClient => _efir;
 
         /// <summary>
-        ///     Shows Bond information.
-        /// </summary>
-        /// <param name="isin">Bond ISIN.</param>
-        public static async Task ShowSecurityInfo(string isin)
-        {
-            await ConnectEfirAsync();
-            var sec = await _efir.ExGetEfirSecurityAsync(isin, true);
-            ShowSecurityInfo(sec);
-        }
-
-        /// <summary>
-        ///     Shows Bond information.
-        /// </summary>
-        /// <param name="bond">Efir security (bond)</param>
-        public static void ShowSecurityInfo(EfirSecurity bond)
-        {
-            Console.WriteLine(bond.AssetClass);
-            Console.WriteLine(bond.ShortName);
-            Console.WriteLine(bond.Isin);
-            Console.WriteLine(bond.IssuerName);
-            Console.WriteLine(bond.IssueSector);
-            Console.WriteLine();
-            Console.WriteLine($"Placement date: {bond.PlacementDate!.Value.ToShortDateString()}");
-            Console.WriteLine($"Maturity date: {bond.MaturityDate!.Value.ToShortDateString()}");
-            Console.WriteLine();
-            Console.WriteLine($"Coupon type: {bond.CouponType}");
-            Console.WriteLine($"Coupon period type: {bond.CouponPeriodType}");
-            Console.WriteLine($"First coupon start: {bond.FirstCouponStartDate}");
-            Console.WriteLine($"Coupon reference: {bond.CouponReferenceRateName}");
-            Console.WriteLine();
-
-            if (bond.EventsSchedule is null)
-                return;
-
-            Console.WriteLine("FLOWS:");
-            foreach(var f in bond.EventsSchedule)
-                Console.WriteLine($"{f.PaymentType} - {f.StartDate!.Value.ToShortDateString()} - {f.EndDate!.Value.ToShortDateString()} - {f.PeriodLength} - {f.Rate} - {f.Payment}");
-        }
-
-        /// <summary>
         ///     Calculates bond price for particular ISIN. 
         /// </summary>
         /// <param name="isin">Security ISIN.</param>
@@ -78,7 +39,7 @@ namespace FiduciaryCalculator
         public static async Task<double> CalculateBondPriceAsync(string isin, DateTime? pricedate = null, double? ytm = null)
         {
             await ConnectEfirAsync();
-            EfirSecurity sec = await _efir.ExGetEfirSecurityAsync(isin, true);
+            InstrumentInfo sec = await _efir.ExGetInstrumentInfoAsync(isin);
             return await CalculateBondPriceAsync(sec, pricedate, ytm);
         }
 
@@ -90,26 +51,32 @@ namespace FiduciaryCalculator
         /// <param name="ytm">Yield-to-maturity. If not specified gcurve rates will be used for discounting.</param>
         /// <exception cref="Exception"> is thrown if bond's <see cref="EfirSecurity.EventsSchedule"/> is null.</exception>
         /// <returns>Bond price</returns>
-        public static async Task<double> CalculateBondPriceAsync(EfirSecurity bond, DateTime? pricedate = null, double? ytm = null)
+        public static async Task<double> CalculateBondPriceAsync(InstrumentInfo bond, DateTime? pricedate = null, double? ytm = null)
         {
-            if (bond.EventsSchedule is null)
+            if (bond.Flows is null)
                 throw new Exception("No bond schedule provided.");
 
             DateTime date = pricedate ?? DateTime.Now;
             List<double> dfs = new();
 
             if (ytm is null)
+            {
                 await ConnectEfirAsync();
 
-            foreach(var e in bond.EventsSchedule)
-            {
-                //if (e.PaymentType != CPN && e.PaymentType != MTY) continue;                 // take only coupons and notional payments
-                double ttm = (e.EndDate!.Value - date).Days / 365.0;                        // calculate time-to-maturity
-                if (ttm < 0) continue;                                                      // go next if ttm is negative
-                double dr = ytm ?? await _efir.ExCalculateGcurveForDateAsync(date, ttm);      // get discount rate
-                double df = e.Payment / Math.Pow((1 + dr), ttm);                            // calculate discounted flow
-                dfs.Add(df);
             }
+
+
+
+
+            //foreach(var flow in bond.Flows)
+            //{
+            //    //if (e.PaymentType != CPN && e.PaymentType != MTY) continue;                   // take only coupons and notional payments
+            //    double ttm = (flow.EndDate - date).Days / 365.0;                                // calculate time-to-maturity
+            //    if (ttm < 0) continue;                                                          // go next if ttm is negative
+            //    double dr = ytm ?? await _efir.ExCalculateGcurveForDateAsync(date, ttm);        // get discount rate
+            //    double df = flow.Payment / Math.Pow((1 + dr), ttm);                             // calculate discounted flow
+            //    dfs.Add(df);
+            //}
 
             return dfs.Sum();
         }
@@ -122,9 +89,9 @@ namespace FiduciaryCalculator
         /// <param name="pricedate">Date of pricing. If null bond price is calculated as of today.</param>
         /// <exception cref="Exception"> is thrown if bond's <see cref="EfirSecurity.EventsSchedule"/> is null.</exception>
         /// <returns>Bond price</returns>
-        public static async Task<double> CalculateBondPriceAsync(EfirSecurity bond, double zspread, DateTime? pricedate = null)
+        public static async Task<double> CalculateBondPriceAsync(InstrumentInfo bond, double zspread, DateTime? pricedate = null)
         {
-            if (bond.EventsSchedule is null)
+            if (bond.Flows is null)
                 throw new Exception("No bond schedule provided.");
 
             DateTime date = pricedate ?? DateTime.Now;
@@ -132,10 +99,10 @@ namespace FiduciaryCalculator
 
             await ConnectEfirAsync();
 
-            foreach (var e in bond.EventsSchedule)
+            foreach (var e in bond.Flows)
             {
                 //if (e.PaymentType != CPN && e.PaymentType != MTY) continue;                         // take only coupons and notional payments
-                double ttm = (e.EndDate!.Value - date).Days / 365.0;                                // calculate time-to-maturity
+                double ttm = (e.EndDate - date).Days / 365.0;                                // calculate time-to-maturity
                 if (ttm < 0) continue;                                                              // go next if ttm is negative
                 double dr = await _efir.ExCalculateGcurveForDateAsync(date, ttm) + zspread / 10000;   // get discount rate
                 double df = e.Payment / Math.Pow((1 + dr), ttm);                                    // calculate discounted flow
@@ -160,7 +127,7 @@ namespace FiduciaryCalculator
         public static async Task<double> CalculateBondYtmAsync(string isin, DateTime? pricedate = null, double? price = null)
         {
             await ConnectEfirAsync();
-            EfirSecurity sec = await _efir.ExGetEfirSecurityAsync(isin, true);
+            InstrumentInfo sec = await _efir.ExGetInstrumentInfoAsync(isin);
             return await CalculateBondYtmAsync(sec, pricedate, price);
         }
 
@@ -176,7 +143,7 @@ namespace FiduciaryCalculator
         /// <param name="pricedate">Date of pricing. If null bond's YTM is calculated as of today.</param>
         /// <param name="price">Bond's target price that is used to calculate YTM. If null theretical bond's price is used obtained using g-curve for pricedate.</param>
         /// <returns>Bond's YTM value.</returns>
-        public static async Task<double> CalculateBondYtmAsync(EfirSecurity bond, DateTime? pricedate = null, double? price = null)
+        public static async Task<double> CalculateBondYtmAsync(InstrumentInfo bond, DateTime? pricedate = null, double? price = null)
         {
             if (price is null) await ConnectEfirAsync();
             double targetPrice = price ?? await CalculateBondPriceAsync(bond, pricedate, null);
@@ -203,7 +170,7 @@ namespace FiduciaryCalculator
         public static async Task<double> CalculateBondDurationAsync(string isin, DateTime? pricedate = null, double? price = null)
         {
             await ConnectEfirAsync();
-            EfirSecurity sec = await _efir.ExGetEfirSecurityAsync(isin, true);
+            InstrumentInfo sec = await _efir.ExGetInstrumentInfoAsync(isin);
             return await CalculateBondDurationAsync(sec, pricedate, price);
         }
 
@@ -214,21 +181,21 @@ namespace FiduciaryCalculator
         /// <param name="pricedate">Date of pricing. If null bond's duration is calculated as of today.</param>
         /// <param name="price">Bond's target price that is used to calculate duration. If null theretical bond's price is used obtained using g-curve for pricedate.</param>
         /// <returns>Bond's duration value.</returns>
-        public static async Task<double> CalculateBondDurationAsync(EfirSecurity bond, DateTime? pricedate = null, double? price = null)
+        public static async Task<double> CalculateBondDurationAsync(InstrumentInfo bond, DateTime? pricedate = null, double? price = null)
         {
             if (price is null) await ConnectEfirAsync();
             double targetPrice = price ?? await CalculateBondPriceAsync(bond, pricedate, null);
             
-            if (bond.EventsSchedule is null)
+            if (bond.Flows is null)
                 throw new Exception("No bond schedule provided.");
 
             DateTime date = pricedate ?? DateTime.Now;
             List<double> dfs = new();
 
-            foreach (var e in bond.EventsSchedule)
+            foreach (var e in bond.Flows)
             {
                 if (e.PaymentType != CPN && e.PaymentType != MTY) continue;                 // take only coupons and notional payments
-                double ttm = (e.EndDate!.Value - date).Days / 365.0;                        // calculate time-to-maturity
+                double ttm = (e.EndDate - date).Days / 365.0;                               // calculate time-to-maturity
                 if (ttm < 0) continue;                                                      // go next if ttm is negative
                 double dr = await _efir.ExCalculateGcurveForDateAsync(date, ttm);             // get discount rate
                 double df = e.Payment / Math.Pow((1 + dr), ttm) * ttm;                      // calculate discounted flow
@@ -248,7 +215,7 @@ namespace FiduciaryCalculator
         public static async Task<double> CalculateGSpreadAsync(string isin, DateTime? pricedate = null, double? ytm = null)
         {
             await ConnectEfirAsync();
-            EfirSecurity sec = await _efir.ExGetEfirSecurityAsync(isin, true);
+            InstrumentInfo sec = await _efir.ExGetInstrumentInfoAsync(isin);
             return await CalculateGSpreadAsync(sec, pricedate, ytm);
         }
 
@@ -259,7 +226,7 @@ namespace FiduciaryCalculator
         /// <param name="pricedate">Date of pricing. If null bond's duration is calculated as of today.</param>
         /// <param name="ytm">Known in advance bond's YTM that is used to calculate G-Spread. If null theretical bond's YTM is calculated.</param>
         /// <returns>Bond's G-Spread value.</returns>
-        public static async Task<double> CalculateGSpreadAsync(EfirSecurity bond, DateTime? pricedate = null, double? ytm = null)
+        public static async Task<double> CalculateGSpreadAsync(InstrumentInfo bond, DateTime? pricedate = null, double? ytm = null)
         {
             pricedate ??= DateTime.Now;
             double price = await CalculateBondPriceAsync(bond, pricedate, ytm);
@@ -280,7 +247,7 @@ namespace FiduciaryCalculator
         public static async Task<double> CalculateZSpreadAsync(string isin, DateTime? pricedate = null, double? price = null)
         {
             await ConnectEfirAsync();
-            EfirSecurity sec = await _efir.ExGetEfirSecurityAsync(isin, true);
+            InstrumentInfo sec = await _efir.ExGetInstrumentInfoAsync(isin);
             return await CalculateGSpreadAsync(sec, pricedate, price);
         }
 
@@ -291,7 +258,7 @@ namespace FiduciaryCalculator
         /// <param name="pricedate">Date of pricing. If null bond's duration is calculated as of today.</param>
         /// <param name="price">Known in advance bond's price that is used to calculate G-Spread. If null theretical bond's price is calculated and used to calculate Z-Spread.</param>
         /// <returns>Bond's Z-Spread value.</returns>
-        public static async Task<double> CalculateZSpreadAsync(EfirSecurity bond, DateTime? pricedate = null, double? price = null)
+        public static async Task<double> CalculateZSpreadAsync(InstrumentInfo bond, DateTime? pricedate = null, double? price = null)
         {
             if (price is null) await ConnectEfirAsync();
             double targetPrice = price ?? await CalculateBondPriceAsync(bond, pricedate, null);
@@ -309,141 +276,132 @@ namespace FiduciaryCalculator
         }
 
 
-        public static async Task ShowAnalogs(EfirSecQueryDetails query)
+        
+        public static async Task<List<(InstrumentInfo, SecurityPricing)>> GetAnalogs(EfirSecQueryDetails query)
         {
             await ConnectEfirAsync();
-            var analogs = await _efir.ExFindAnalogsAsync(query);
-            var isins = analogs.Select(a => a.Isin!).ToArray();
+            var secs = await _efir.ExGetBondsAlike(query);
+            var date = new DateTime(2023, 12, 22);
+            var retval = new List<(InstrumentInfo, SecurityPricing)>(secs.Length);
 
-            var allflows = await _efir.GetEventsCalendarAsync(isins);
-
-
-            var svod = new ConsoleTable("ISIN", "Issue", "Placement", "Maturity", "Ratiting BIG3", "Raiting RU", "Mkt. Price", "Th. Price", "YTM", "Duration", "G-Spread", "Z-Spread");
-
-            for (int i = 0; i < isins.Length; i++)
+            foreach (var sec in secs)
             {
-                analogs[i].EventsSchedule = GetFlowsForPricing(allflows, analogs[i].Isin!, out bool isBad);
-                if (isBad) continue;
+                // skip if security does not have records for flows or trade history
+                if (sec.TradeHistory is null || sec.Flows is null) continue;
 
-
-                var eod = await _efir.EndOfDay(analogs[i].Isin, new DateTime(2023, 12, 22));
-                if (eod.last is null || eod.facevalue is null) continue;
+                // mkt price
+                var lastTradeRecord = sec.TradeHistory.Last();
+                var price = lastTradeRecord.Close / 100.0 * lastTradeRecord.FaceValue;  // what if close or face == 0 ????
+                if (price == 0 || price is double.NaN) throw new Exception($"Bad market data for {sec.Isin}");
                 
+                // vol, ytm, etc..
+                var vol = sec.TradeHistory.Select(th => th.Volume).Average();                
+                var duration = await CalculateBondDurationAsync(sec, date, price);
+                var ytm = await CalculateBondYtmAsync(sec, date, price);
+                var gspread = await CalculateGSpreadAsync(sec, date, ytm);
+                var zspread = await CalculateZSpreadAsync(sec, date, price);
 
-                var price = (double)(eod.last / 100m * eod.facevalue) + ((double?)eod.accruedint ?? default);   // <---------------------------------------------  НАДО ДОБАВИТЬ НКД
-
-                Console.WriteLine($"{analogs[i].Isin}\t{analogs[i].ShortName}");
-
-
-                var ytm = await CalculateBondYtmAsync(analogs[i], new DateTime(2023, 12, 22), price);
-                var zspread = await CalculateZSpreadAsync(analogs[i], new DateTime(2023, 12, 22), price); // analogs[i].PlacementDate, 1000
-                var gspread = await CalculateGSpreadAsync(analogs[i], new DateTime(2023, 12, 22), ytm);
-                var duration = await CalculateBondDurationAsync(analogs[i], new DateTime(2023, 12, 22), price);
-                var tprice = await CalculateBondPriceAsync(analogs[i], new DateTime(2023, 12, 22), null);
-                
-                var table = new ConsoleTable("Type", "Start", "End", "Rate", "Flow");
-                foreach ( var e in analogs[i].EventsSchedule!)
-                    table.AddRow(e.PaymentType, e.StartDate?.ToShortDateString(), e.EndDate?.ToShortDateString(), e.Rate, e.Payment);
-
-
-                table.Write(Format.Minimal);
-                Console.WriteLine();
-
-
-                //svod.Configure(r => r.NumberAlignment = Alignment.Right);
-                svod.AddRow(analogs[i].Isin!, eod.secname_e, analogs[i].PlacementDate?.ToShortDateString(),
-                    analogs[i].MaturityDate?.ToShortDateString(), analogs[i].RatingAggregated.ToShortStringBig3(), analogs[i].RatingAggregated.ToShortStringRu(), price, string.Format("{0:0.00}", tprice), string.Format("{0:0.00%}", ytm), 
-                    string.Format("{0:0.00}", duration), string.Format("{0:0}", gspread), string.Format("{0:0}", zspread));
+                var pricing = new SecurityPricing() { Price = price, TradeVolume = vol, Duration = duration, Ytm = ytm, Gspread = gspread, Zspread = zspread };
+                retval.Add((sec, pricing));
             }
 
-            svod.Configure(r => r.NumberAlignment = Alignment.Right).Write(Format.Minimal);
+            return retval;  
+        }
+
+
+        //public static async Task ShowAnalogs(EfirSecQueryDetails query)
+        //{
+        //    await ConnectEfirAsync();
+        //    var analogs = await _efir.ExFindAnalogsAsync(query);
+        //    var isins = analogs.Select(a => a.Isin!).ToArray();
+
+        //    var allflows = await _efir.GetEventsCalendarAsync(isins);
+
+
+        //    var svod = new ConsoleTable("ISIN", "Issue", "Placement", "Maturity", "Ratiting BIG3", "Raiting RU", "Mkt. Price", "Th. Price", "YTM", "Duration", "G-Spread", "Z-Spread");
+
+        //    for (int i = 0; i < isins.Length; i++)
+        //    {
+        //        analogs[i].EventsSchedule = GetFlowsForPricing(allflows, analogs[i].Isin!, out bool isBad);
+        //        if (isBad) continue;
+
+
+        //        var eod = await _efir.EndOfDay(analogs[i].Isin, new DateTime(2023, 12, 22));
+        //        if (eod.last is null || eod.facevalue is null) continue;
+                
+
+        //        var price = (double)(eod.last / 100m * eod.facevalue) + ((double?)eod.accruedint ?? default);   // <---------------------------------------------  НАДО ДОБАВИТЬ НКД
+
+        //        Console.WriteLine($"{analogs[i].Isin}\t{analogs[i].ShortName}");
+
+
+        //        var ytm = await CalculateBondYtmAsync(analogs[i], new DateTime(2023, 12, 22), price);
+        //        var zspread = await CalculateZSpreadAsync(analogs[i], new DateTime(2023, 12, 22), price); // analogs[i].PlacementDate, 1000
+        //        var gspread = await CalculateGSpreadAsync(analogs[i], new DateTime(2023, 12, 22), ytm);
+        //        var duration = await CalculateBondDurationAsync(analogs[i], new DateTime(2023, 12, 22), price);
+        //        var tprice = await CalculateBondPriceAsync(analogs[i], new DateTime(2023, 12, 22), null);
+                
+        //        var table = new ConsoleTable("Type", "Start", "End", "Rate", "Flow");
+        //        foreach ( var e in analogs[i].EventsSchedule!)
+        //            table.AddRow(e.PaymentType, e.StartDate?.ToShortDateString(), e.EndDate?.ToShortDateString(), e.Rate, e.Payment);
+
+
+        //        table.Write(Format.Minimal);
+        //        Console.WriteLine();
+
+
+        //        //svod.Configure(r => r.NumberAlignment = Alignment.Right);
+        //        svod.AddRow(analogs[i].Isin!, eod.secname_e, analogs[i].PlacementDate?.ToShortDateString(),
+        //            analogs[i].MaturityDate?.ToShortDateString(), analogs[i].RatingAggregated.ToShortStringBig3(), analogs[i].RatingAggregated.ToShortStringRu(), price, string.Format("{0:0.00}", tprice), string.Format("{0:0.00%}", ytm), 
+        //            string.Format("{0:0.00}", duration), string.Format("{0:0}", gspread), string.Format("{0:0}", zspread));
+        //    }
+
+        //    svod.Configure(r => r.NumberAlignment = Alignment.Right).Write(Format.Minimal);
             
-        }
+        //}
 
 
-        private static string[] CheckBadIsins(List<SecurityEvent> timetable)
-        {
-            return timetable.Where(t => t.EndDate is null).Select(t => t.Isin).ToArray();
-        }
+        //private static string[] CheckBadIsins(List<SecurityEvent> timetable)
+        //{
+        //    return timetable.Where(t => t.EndDate is null).Select(t => t.Isin).ToArray();
+        //}
 
-        private static List<SecurityEvent> GetFlowsForPricing(TimeTableV2Fields[] events, string isin, out bool isBad)
-        {
-            var flows = events
-                .Select(e => new SecurityEvent(e))
-                .Where(fl => fl.Isin == isin)
-                .Where(e => e.PaymentType is not SecurityFlow.CALL)
-                .Where(e => e.PaymentType is not SecurityFlow.CONV)
-                .Where(e => e.PaymentType is not SecurityFlow.DIV)                
-                .ToList();
+        //private static List<SecurityEvent> GetFlowsForPricing(TimeTableV2Fields[] events, string isin, out bool isBad)
+        //{
+        //    var flows = events
+        //        .Select(e => new SecurityEvent(e))
+        //        .Where(fl => fl.Isin == isin)
+        //        .Where(e => e.PaymentType is not SecurityFlow.CALL)
+        //        .Where(e => e.PaymentType is not SecurityFlow.CONV)
+        //        .Where(e => e.PaymentType is not SecurityFlow.DIV)                
+        //        .ToList();
 
-            isBad = flows.Any(f => f.EndDate is null);
+        //    isBad = flows.Any(f => f.EndDate is null);
 
-            DateTime? lastNonZeroCouponDate = flows
-                .Where(e => e.PaymentType is SecurityFlow.CPN)
-                .Where(e => e.Payment != 0)
-                .Max(e => e.EndDate);
+        //    DateTime? lastNonZeroCouponDate = flows
+        //        .Where(e => e.PaymentType is SecurityFlow.CPN)
+        //        .Where(e => e.Payment != 0)
+        //        .Max(e => e.EndDate);
 
-            foreach (var flow in flows)
-            {
-                if (flow.PaymentType is SecurityFlow.PUT && flow.EndDate < lastNonZeroCouponDate)
-                {
-                    flow.Rate = default;
-                    flow.Payment = default;
-                }
+        //    foreach (var flow in flows)
+        //    {
+        //        if (flow.PaymentType is SecurityFlow.PUT && flow.EndDate < lastNonZeroCouponDate)
+        //        {
+        //            flow.Rate = default;
+        //            flow.Payment = default;
+        //        }
 
-                if (flow.EndDate > lastNonZeroCouponDate)
-                {
-                    flow.Rate = default;
-                    flow.Payment = default;
-                }
-            }
-            return flows;
-        }
-
-
-        private static List<SecurityEvent> GetFlowsForPricing2(TimeTableV2Fields[] events, string isin, out bool isBad)
-        {
-            var flows = events
-                .Select(e => new SecurityEvent(e))
-                .Where(fl => fl.Isin == isin)
-                .Where(e => e.PaymentType is not SecurityFlow.CALL)
-                .Where(e => e.PaymentType is not SecurityFlow.CONV)
-                .Where(e => e.PaymentType is not SecurityFlow.DIV)
-                .ToList();
-
-            isBad = flows.Any(f => f.EndDate is null);
-
-            DateTime firstCpnEndDate = (DateTime)flows
-                .Where(f => f.PaymentType == SecurityFlow.CPN)
-                .Min(f => f.EndDate)!;
-
-            DateTime? comingOffer = flows
-                .Where(f => f.PaymentType == SecurityFlow.PUT)
-                .Where(f => f.EndDate <= firstCpnEndDate)
-                .Min(f => f.EndDate);
+        //        if (flow.EndDate > lastNonZeroCouponDate)
+        //        {
+        //            flow.Rate = default;
+        //            flow.Payment = default;
+        //        }
+        //    }
+        //    return flows;
+        //}
 
 
-            DateTime? lastNonZeroCouponDate = flows
-                .Where(e => e.PaymentType is SecurityFlow.CPN)
-                .Where(e => e.Payment != 0)
-                .Max(e => e.EndDate);
-
-            foreach (var flow in flows)
-            {
-                if (flow.PaymentType is SecurityFlow.PUT && flow.EndDate < lastNonZeroCouponDate)
-                {
-                    flow.Rate = default;
-                    flow.Payment = default;
-                }
-
-                if (flow.EndDate > comingOffer)
-                {
-                    flow.Rate = default;
-                    flow.Payment = default;
-                }
-            }
-            return flows;
-        }
+        
 
 
         /// <summary>
@@ -453,6 +411,42 @@ namespace FiduciaryCalculator
         {
             if (!_efir.IsLoggedIn)            
                 await _efir.LoginAsync();            
+        }
+
+
+
+        private static IEnumerable<double> GetDiscountedFlows(IEnumerable<InstrumentFlow> flows, DateTime date, double ytm)
+        {
+            const FlowType PUT = FlowType.PUT;
+            bool offerAlreadyPassed = default;
+
+            foreach (var flow in flows)
+            {
+                if (offerAlreadyPassed) continue;
+                if (flow.PaymentType == PUT) offerAlreadyPassed = true;
+
+                double ttm = (flow.EndDate - date).Days / 365.0;                                // calculate time-to-maturity
+                if (ttm < 0) continue;                                                          // go next if ttm is negative
+                yield return flow.Payment / Math.Pow((1 + ytm), ttm);                           // calculate discounted flow
+            }
+        }
+
+
+        private static IEnumerable<double> GetDiscountedFlows(IEnumerable<InstrumentFlow> flows, DateTime date, Func<double, double> GcurveRateProvider)
+        {
+            const FlowType PUT = FlowType.PUT;
+            bool offerAlreadyPassed = default;
+
+            foreach (var flow in flows)
+            {
+                if (offerAlreadyPassed) continue;
+                if (flow.PaymentType == PUT) offerAlreadyPassed = true;
+
+                double ttm = (flow.EndDate - date).Days / 365.0;                                // calculate time-to-maturity
+                if (ttm < 0) continue;                                                          // go next if ttm is negative
+                double r = GcurveRateProvider(ttm);                                             // get risk-free discount rate from G-Curve
+                yield return flow.Payment / Math.Pow((1 + r), ttm);                             // calculate discounted flow
+            }
         }
     }
 }
