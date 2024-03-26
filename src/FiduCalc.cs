@@ -39,7 +39,7 @@ namespace FiduciaryCalculator
         public static async Task<double> CalculateBondPriceAsync(string isin, DateTime? pricedate = null, double? ytm = null)
         {
             await ConnectEfirAsync();
-            InstrumentInfo sec = await _efir.ExGetInstrumentInfoAsync(isin);
+            InstrumentInfo sec = await _efir.ExGetInstrumentInfo(isin);
             return await CalculateBondPriceAsync(sec, pricedate, ytm);
         }
 
@@ -63,7 +63,7 @@ namespace FiduciaryCalculator
             {
                 await ConnectEfirAsync();
                 var gcparams = await _efir.GetGcurveParametersAsync(date);
-                Func<double, double> gcrateProvider = (tenor) => EfirExtensions.ExCalculateGcurveForDateAsync(gcparams, tenor);
+                Func<double, double> gcrateProvider = (tenor) => EfirExtensions.ExCalculateGcurveValues(gcparams, tenor);
                 dfs = GetDiscountedFlows(bond.Flows, date, gcrateProvider);                
             }
             else
@@ -102,7 +102,7 @@ namespace FiduciaryCalculator
 
             await ConnectEfirAsync();
             var gcparams = await _efir.GetGcurveParametersAsync(date);
-            Func<double, double> gcrateProvider = (tenor) => EfirExtensions.ExCalculateGcurveForDateAsync(gcparams, tenor) + zspread;
+            Func<double, double> gcrateProvider = (tenor) => EfirExtensions.ExCalculateGcurveValues(gcparams, tenor) + zspread;
             dfs = GetDiscountedFlows(bond.Flows, date, gcrateProvider);
             
             //foreach (var e in bond.Flows)
@@ -134,7 +134,7 @@ namespace FiduciaryCalculator
         public static async Task<double> CalculateBondYtmAsync(string isin, DateTime? pricedate = null, double? price = null)
         {
             await ConnectEfirAsync();
-            InstrumentInfo sec = await _efir.ExGetInstrumentInfoAsync(isin);
+            InstrumentInfo sec = await _efir.ExGetInstrumentInfo(isin);
             return await CalculateBondYtmAsync(sec, pricedate, price);
         }
 
@@ -178,7 +178,7 @@ namespace FiduciaryCalculator
         public static async Task<double> CalculateBondDurationAsync(string isin, DateTime? pricedate = null, double? price = null)
         {
             await ConnectEfirAsync();
-            InstrumentInfo sec = await _efir.ExGetInstrumentInfoAsync(isin);
+            InstrumentInfo sec = await _efir.ExGetInstrumentInfo(isin);
             return await CalculateBondDurationAsync(sec, pricedate, price);
         }
 
@@ -203,7 +203,7 @@ namespace FiduciaryCalculator
 
             await ConnectEfirAsync();
             var gcparams = await _efir.GetGcurveParametersAsync(date);
-            Func<double, double> gcrateProvider = (tenor) => EfirExtensions.ExCalculateGcurveForDateAsync(gcparams, tenor);
+            Func<double, double> gcrateProvider = (tenor) => EfirExtensions.ExCalculateGcurveValues(gcparams, tenor);
             dfs = GetWeightedTenors(bond.Flows, date, gcrateProvider);
 
 
@@ -234,7 +234,7 @@ namespace FiduciaryCalculator
         public static async Task<double> CalculateGSpreadAsync(string isin, DateTime? pricedate = null, double? ytm = null)
         {
             await ConnectEfirAsync();
-            InstrumentInfo sec = await _efir.ExGetInstrumentInfoAsync(isin);
+            InstrumentInfo sec = await _efir.ExGetInstrumentInfo(isin);
             return await CalculateGSpreadAsync(sec, pricedate, ytm);
         }
 
@@ -252,7 +252,7 @@ namespace FiduciaryCalculator
             ytm ??= await CalculateBondYtmAsync(bond, pricedate, price);
             double dur = await CalculateBondDurationAsync(bond, pricedate, price);
             await ConnectEfirAsync();
-            double gcurve = await _efir.ExCalculateGcurveForDateAsync(pricedate!.Value, dur);
+            double gcurve = await _efir.ExCalculateGcurveValues(pricedate!.Value, dur);
             return (ytm!.Value - gcurve) * 10000;
         }
 
@@ -266,7 +266,7 @@ namespace FiduciaryCalculator
         public static async Task<double> CalculateZSpreadAsync(string isin, DateTime? pricedate = null, double? price = null)
         {
             await ConnectEfirAsync();
-            InstrumentInfo sec = await _efir.ExGetInstrumentInfoAsync(isin);
+            InstrumentInfo sec = await _efir.ExGetInstrumentInfo(isin);
             return await CalculateGSpreadAsync(sec, pricedate, price);
         }
 
@@ -299,7 +299,7 @@ namespace FiduciaryCalculator
         public static async Task<List<(InstrumentInfo, SecurityPricing)>> GetAnalogs(EfirSecQueryDetails query)
         {
             await ConnectEfirAsync();
-            var secs = await _efir.ExGetBondsAlike(query);
+            var secs = await _efir.ExSearchBonds(query);
                                                                                                                 Console.WriteLine(secs.Length);
             var date = new DateTime(2023, 12, 22);
             var retval = new List<(InstrumentInfo, SecurityPricing)>(secs.Length);
