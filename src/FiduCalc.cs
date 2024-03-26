@@ -56,17 +56,20 @@ namespace FiduciaryCalculator
             if (bond.Flows is null)
                 throw new Exception("No bond schedule provided.");
 
-            DateTime date = pricedate ?? DateTime.Now;
-            List<double> dfs = new();
+            DateTime date = pricedate ?? DateTime.Now;        
+            var dfs = Enumerable.Empty<double>();
 
             if (ytm is null)
             {
                 await ConnectEfirAsync();
-
+                var gcparams = await _efir.GetGcurveParametersAsync(date);
+                Func<double, double> gcrateProvider = (tenor) => EfirExtensions.ExCalculateGcurveForDateAsync(gcparams, tenor);
+                dfs = GetDiscountedFlows(bond.Flows, date, gcrateProvider);                
             }
-
-
-
+            else
+            {
+                dfs = GetDiscountedFlows(bond.Flows, date, ytm.Value);
+            }
 
             //foreach(var flow in bond.Flows)
             //{
@@ -95,22 +98,26 @@ namespace FiduciaryCalculator
                 throw new Exception("No bond schedule provided.");
 
             DateTime date = pricedate ?? DateTime.Now;
-            List<double> dfs = new();
+            var dfs = Enumerable.Empty<double>();
 
             await ConnectEfirAsync();
-
-            foreach (var e in bond.Flows)
-            {
-                //if (e.PaymentType != CPN && e.PaymentType != MTY) continue;                         // take only coupons and notional payments
-                double ttm = (e.EndDate - date).Days / 365.0;                                // calculate time-to-maturity
-                if (ttm < 0) continue;                                                              // go next if ttm is negative
-                double dr = await _efir.ExCalculateGcurveForDateAsync(date, ttm) + zspread / 10000;   // get discount rate
-                double df = e.Payment / Math.Pow((1 + dr), ttm);                                    // calculate discounted flow
-                dfs.Add(df);
-            }
+            var gcparams = await _efir.GetGcurveParametersAsync(date);
+            Func<double, double> gcrateProvider = (tenor) => EfirExtensions.ExCalculateGcurveForDateAsync(gcparams, tenor) + zspread;
+            dfs = GetDiscountedFlows(bond.Flows, date, gcrateProvider);
+            
+            //foreach (var e in bond.Flows)
+            //{
+            //    //if (e.PaymentType != CPN && e.PaymentType != MTY) continue;                         // take only coupons and notional payments
+            //    double ttm = (e.EndDate - date).Days / 365.0;                                // calculate time-to-maturity
+            //    if (ttm < 0) continue;                                                              // go next if ttm is negative
+            //    double dr = await _efir.ExCalculateGcurveForDateAsync(date, ttm) + zspread / 10000;   // get discount rate
+            //    double df = e.Payment / Math.Pow((1 + dr), ttm);                                    // calculate discounted flow
+            //    dfs.Add(df);
+            //}
 
             return dfs.Sum();
         }
+
 
         /// <summary>
         ///     Calculates bond's yield to maturity.
@@ -130,6 +137,7 @@ namespace FiduciaryCalculator
             InstrumentInfo sec = await _efir.ExGetInstrumentInfoAsync(isin);
             return await CalculateBondYtmAsync(sec, pricedate, price);
         }
+
 
         /// <summary>
         ///     Calculates bond's yield to maturity.
@@ -183,24 +191,35 @@ namespace FiduciaryCalculator
         /// <returns>Bond's duration value.</returns>
         public static async Task<double> CalculateBondDurationAsync(InstrumentInfo bond, DateTime? pricedate = null, double? price = null)
         {
-            if (price is null) await ConnectEfirAsync();
+            if (price is null) 
+                await ConnectEfirAsync();
             double targetPrice = price ?? await CalculateBondPriceAsync(bond, pricedate, null);
             
             if (bond.Flows is null)
                 throw new Exception("No bond schedule provided.");
 
             DateTime date = pricedate ?? DateTime.Now;
-            List<double> dfs = new();
+            var dfs = Enumerable.Empty<double>();
 
-            foreach (var e in bond.Flows)
-            {
-                if (e.PaymentType != CPN && e.PaymentType != MTY) continue;                 // take only coupons and notional payments
-                double ttm = (e.EndDate - date).Days / 365.0;                               // calculate time-to-maturity
-                if (ttm < 0) continue;                                                      // go next if ttm is negative
-                double dr = await _efir.ExCalculateGcurveForDateAsync(date, ttm);             // get discount rate
-                double df = e.Payment / Math.Pow((1 + dr), ttm) * ttm;                      // calculate discounted flow
-                dfs.Add(df);
-            }
+            await ConnectEfirAsync();
+            var gcparams = await _efir.GetGcurveParametersAsync(date);
+            Func<double, double> gcrateProvider = (tenor) => EfirExtensions.ExCalculateGcurveForDateAsync(gcparams, tenor);
+            dfs = GetWeightedTenors(bond.Flows, date, gcrateProvider);
+
+
+
+
+            //List<double> dfs = new();
+
+            //foreach (var e in bond.Flows)
+            //{
+            //    if (e.PaymentType != CPN && e.PaymentType != MTY) continue;                 // take only coupons and notional payments
+            //    double ttm = (e.EndDate - date).Days / 365.0;                               // calculate time-to-maturity
+            //    if (ttm < 0) continue;                                                      // go next if ttm is negative
+            //    double dr = await _efir.ExCalculateGcurveForDateAsync(date, ttm);             // get discount rate
+            //    double df = e.Payment / Math.Pow((1 + dr), ttm) * ttm;                      // calculate discounted flow
+            //    dfs.Add(df);
+            //}
 
             return dfs.Sum() / targetPrice;
         }
@@ -281,19 +300,37 @@ namespace FiduciaryCalculator
         {
             await ConnectEfirAsync();
             var secs = await _efir.ExGetBondsAlike(query);
+                                                                                                                Console.WriteLine(secs.Length);
             var date = new DateTime(2023, 12, 22);
             var retval = new List<(InstrumentInfo, SecurityPricing)>(secs.Length);
 
             foreach (var sec in secs)
             {
                 // skip if security does not have records for flows or trade history
-                if (sec.TradeHistory is null || sec.Flows is null) continue;
+                if (sec.TradeHistory is null || sec.Flows is null)
+                {
+                    await Console.Out.WriteLineAsync("skip 1");
+                    continue;
+                }
 
                 // mkt price
                 var lastTradeRecord = sec.TradeHistory.Last();
+
                 var price = lastTradeRecord.Close / 100.0 * lastTradeRecord.FaceValue;  // what if close or face == 0 ????
-                if (price == 0 || price is double.NaN) throw new Exception($"Bad market data for {sec.Isin}");
+
+
+
+
+                if (price == 0 || price is double.NaN)
+                {
+                    await Console.Out.WriteLineAsync("skip 2");
+                    continue;  //throw new Exception($"Bad market data for {sec.Isin}");
+                }
                 
+
+
+
+
                 // vol, ytm, etc..
                 var vol = sec.TradeHistory.Select(th => th.Volume).Average();                
                 var duration = await CalculateBondDurationAsync(sec, date, price);
@@ -446,6 +483,24 @@ namespace FiduciaryCalculator
                 if (ttm < 0) continue;                                                          // go next if ttm is negative
                 double r = GcurveRateProvider(ttm);                                             // get risk-free discount rate from G-Curve
                 yield return flow.Payment / Math.Pow((1 + r), ttm);                             // calculate discounted flow
+            }
+        }
+
+
+        private static IEnumerable<double> GetWeightedTenors(IEnumerable<InstrumentFlow> flows, DateTime date, Func<double, double> GcurveRateProvider)
+        {
+            const FlowType PUT = FlowType.PUT;
+            bool offerAlreadyPassed = default;
+
+            foreach (var flow in flows)
+            {
+                if (offerAlreadyPassed) continue;
+                if (flow.PaymentType == PUT) offerAlreadyPassed = true;
+
+                double ttm = (flow.EndDate - date).Days / 365.0;                                // calculate time-to-maturity
+                if (ttm < 0) continue;                                                          // go next if ttm is negative
+                double r = GcurveRateProvider(ttm);                                             // get risk-free discount rate from G-Curve
+                yield return flow.Payment / Math.Pow((1 + r), ttm) * ttm;                             // calculate discounted flow
             }
         }
     }
