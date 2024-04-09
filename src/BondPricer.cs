@@ -9,12 +9,12 @@ namespace FiduciaryCalculator
     /// <summary>
     ///     Fiduciary calculator. Provides static methods to find comparables to a bond, calculate yield, z-spread for a bond, etc.
     /// </summary>
-    public class FiduCalс
+    public class BondPricer
     {
         private readonly EfirClient _efir;
         private const FlowType PUT = FlowType.PUT;
         
-        public FiduCalс(EfirClient client)
+        public BondPricer(EfirClient client)
         {
             _efir = client;
         }
