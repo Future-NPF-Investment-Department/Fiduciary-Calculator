@@ -9,108 +9,20 @@ namespace FiduciaryCalculator
     /// <summary>
     ///     Fiduciary calculator. Provides static methods to find comparables to a bond, calculate yield, z-spread for a bond, etc.
     /// </summary>
-    public static class FiduCalс
+    public class FiduCalс
     {
-        private static readonly EfirClient _efir = null!;
+        private readonly EfirClient _efir;
         private const FlowType PUT = FlowType.PUT;
         
-        static FiduCalс()
+        public FiduCalс(EfirClient client)
         {
-            if (!File.Exists("EfirCredentials.json")) throw new FileNotFoundException("Cannot find file: EfirCredentials.json", "EfirCredentials.json");
-            var creds = EfirClient.GetCredentialsFromFile("EfirCredentials.json");
-            _efir = new EfirClient(creds);
+            _efir = client;
         }
 
         /// <summary>
         ///     EfirClient instance that is used to connect to EFIR server.
         /// </summary>
-        public static EfirClient EfirClient => _efir;
-
-        /// <summary>
-        ///     Calculates bond price using secant method. 
-        /// </summary>
-        /// <param name="bond">Efir security (bond).</param>
-        /// <param name="date">Date of pricing.</param>
-        /// <param name="ytm">Yield-to-maturity. If not specified gcurve rates will be used for discounting.</param>
-        /// <exception cref="Exception"> is thrown if bond's <see cref="InstrumentInfo.Flows"/> is null.</exception>
-        /// <returns>Bond price.</returns>
-        public static async Task<double> CalculateBondPrice(string isin, DateTime date, double ytm)
-        {
-            await ConnectEfirAsync();
-            var sec = await _efir.ExGetInstrumentInfo(isin);
-            return CalculateBondPrice(sec, date, ytm);
-        }
-
-        /// <summary>
-        ///     Calculates bond price using provided Z-Spread calue. Calculation performed using secant method.
-        /// </summary>
-        /// <param name="bond">Efir security (bond).</param>
-        /// <param name="zspread">Z-Spread value.</param>
-        /// <param name="pricedate">Date of pricing.</param>
-        /// <exception cref="Exception"> is thrown if bond's <see cref="InstrumentInfo.Flows"/> is null.</exception>
-        /// <returns>Bond price</returns>
-        public static async Task<double> CalculateBondPrice(string isin, YieldCurve curve, double zspread = .0)
-        {
-            await ConnectEfirAsync();
-            var sec = await _efir.ExGetInstrumentInfo(isin);
-            return CalculateBondPrice(sec, curve, zspread);
-        }
-
-        /// <summary>
-        ///     Calculates bond's yield to maturity using secant method.
-        /// </summary>
-        /// <param name="bond">Efir security (bond).</param>
-        /// <param name="date">Date of pricing. If null bond's YTM is calculated as of today.</param>
-        /// <param name="price">Bond's target price that is used to calculate YTM.</param>
-        /// <returns>Bond's YTM value.</returns>
-        public static async Task<double> CalculateBondYtm(string isin, DateTime date, double price)
-        {
-            await ConnectEfirAsync();
-            var sec = await _efir.ExGetInstrumentInfo(isin);
-            return CalculateBondYtm(sec, date, price);
-        }
-
-        /// <summary>
-        ///     Calculates bond duration at date using secant method.
-        /// </summary>
-        /// <param name="bond"><see cref="InstrumentInfo"/> that represents a bond.</param>
-        /// <param name="curve">Zero curve that used for pricing.</param>
-        /// <param name="price">Bond's target price that is used to calculate duration. If null theretical bond's price is used obtained using g-curve for pricedate.</param>
-        /// <returns>Bond's duration value.</returns>
-        public static async Task<double> CalculateBondDuration(string isin, YieldCurve curve, double price)
-        {
-            await ConnectEfirAsync();
-            var sec = await _efir.ExGetInstrumentInfo(isin);
-            return CalculateBondDuration(sec, curve, price);
-        }
-
-        /// <summary>
-        ///     Calculates bond's G-Spread at date using secant method.
-        /// </summary>
-        /// <param name="bond"><see cref="InstrumentInfo"/> that represents a bond.</param>
-        /// <param name="curve">Zero curve that used for pricing.</param>
-        /// <param name="ytm">Known in advance bond's YTM that is used to calculate G-Spread. If null theretical bond's YTM is calculated.</param>
-        /// <returns>Bond's G-Spread value.</returns>
-        public static async Task<double> CalculateBondGspread(string isin, YieldCurve curve, double ytm, double price)
-        {
-            await ConnectEfirAsync();
-            var sec = await _efir.ExGetInstrumentInfo(isin);
-            return CalculateBondGSpread(sec, curve, ytm, price);
-        }
-
-        /// <summary>
-        ///     Calculates bond's Z-Spread at date using secant method.
-        /// </summary>
-        /// <param name="bond"><see cref="InstrumentInfo"/> that represents a bond.</param>
-        /// <param name="curve">Zero curve that used for pricing.</param>
-        /// <param name="price">Known in advance bond's price that is used to calculate G-Spread. If null theretical bond's price is calculated and used to calculate Z-Spread.</param>
-        /// <returns>Bond's Z-Spread value.</returns>
-        public static async Task<double> CalculateBondZspread(string isin, YieldCurve curve, double price)
-        {
-            await ConnectEfirAsync();
-            var sec = await _efir.ExGetInstrumentInfo(isin);
-            return CalculateBondZSpread(sec, curve, price);
-        }
+        public EfirClient EfirClient => _efir;
 
         /// <summary>
         ///     Calculates bond price using secant method. 
@@ -223,7 +135,7 @@ namespace FiduciaryCalculator
         /// </summary>
         /// <param name="query">Search criteria.</param>
         /// <returns>List of analogs.</returns>
-        public static async Task<List<(InstrumentInfo, SecurityPricing, bool)>> GetAnalogs(EfirSecQueryDetails query)
+        public async Task<List<(InstrumentInfo, SecurityPricing, bool)>> GetAnalogs(EfirSecQueryDetails query)
         {
             var date = new DateTime(2024, 4, 4);
             var retval = new List<(InstrumentInfo, SecurityPricing, bool)>();            
@@ -364,9 +276,95 @@ namespace FiduciaryCalculator
         }
 
         /// <summary>
+        ///     Calculates bond price using secant method. 
+        /// </summary>
+        /// <param name="bond">Efir security (bond).</param>
+        /// <param name="date">Date of pricing.</param>
+        /// <param name="ytm">Yield-to-maturity. If not specified gcurve rates will be used for discounting.</param>
+        /// <exception cref="Exception"> is thrown if bond's <see cref="InstrumentInfo.Flows"/> is null.</exception>
+        /// <returns>Bond price.</returns>
+        public async Task<double> CalculateBondPrice(string isin, DateTime date, double ytm)
+        {
+            await ConnectEfirAsync();
+            var sec = await _efir.ExGetInstrumentInfo(isin);
+            return CalculateBondPrice(sec, date, ytm);
+        }
+
+        /// <summary>
+        ///     Calculates bond price using provided Z-Spread calue. Calculation performed using secant method.
+        /// </summary>
+        /// <param name="bond">Efir security (bond).</param>
+        /// <param name="zspread">Z-Spread value.</param>
+        /// <param name="pricedate">Date of pricing.</param>
+        /// <exception cref="Exception"> is thrown if bond's <see cref="InstrumentInfo.Flows"/> is null.</exception>
+        /// <returns>Bond price</returns>
+        public async Task<double> CalculateBondPrice(string isin, YieldCurve curve, double zspread = .0)
+        {
+            await ConnectEfirAsync();
+            var sec = await _efir.ExGetInstrumentInfo(isin);
+            return CalculateBondPrice(sec, curve, zspread);
+        }
+
+        /// <summary>
+        ///     Calculates bond's yield to maturity using secant method.
+        /// </summary>
+        /// <param name="bond">Efir security (bond).</param>
+        /// <param name="date">Date of pricing. If null bond's YTM is calculated as of today.</param>
+        /// <param name="price">Bond's target price that is used to calculate YTM.</param>
+        /// <returns>Bond's YTM value.</returns>
+        public async Task<double> CalculateBondYtm(string isin, DateTime date, double price)
+        {
+            await ConnectEfirAsync();
+            var sec = await _efir.ExGetInstrumentInfo(isin);
+            return CalculateBondYtm(sec, date, price);
+        }
+
+        /// <summary>
+        ///     Calculates bond duration at date using secant method.
+        /// </summary>
+        /// <param name="bond"><see cref="InstrumentInfo"/> that represents a bond.</param>
+        /// <param name="curve">Zero curve that used for pricing.</param>
+        /// <param name="price">Bond's target price that is used to calculate duration. If null theretical bond's price is used obtained using g-curve for pricedate.</param>
+        /// <returns>Bond's duration value.</returns>
+        public async Task<double> CalculateBondDuration(string isin, YieldCurve curve, double price)
+        {
+            await ConnectEfirAsync();
+            var sec = await _efir.ExGetInstrumentInfo(isin);
+            return CalculateBondDuration(sec, curve, price);
+        }
+
+        /// <summary>
+        ///     Calculates bond's G-Spread at date using secant method.
+        /// </summary>
+        /// <param name="bond"><see cref="InstrumentInfo"/> that represents a bond.</param>
+        /// <param name="curve">Zero curve that used for pricing.</param>
+        /// <param name="ytm">Known in advance bond's YTM that is used to calculate G-Spread. If null theretical bond's YTM is calculated.</param>
+        /// <returns>Bond's G-Spread value.</returns>
+        public async Task<double> CalculateBondGspread(string isin, YieldCurve curve, double ytm, double price)
+        {
+            await ConnectEfirAsync();
+            var sec = await _efir.ExGetInstrumentInfo(isin);
+            return CalculateBondGSpread(sec, curve, ytm, price);
+        }
+
+        /// <summary>
+        ///     Calculates bond's Z-Spread at date using secant method.
+        /// </summary>
+        /// <param name="bond"><see cref="InstrumentInfo"/> that represents a bond.</param>
+        /// <param name="curve">Zero curve that used for pricing.</param>
+        /// <param name="price">Known in advance bond's price that is used to calculate G-Spread. If null theretical bond's price is calculated and used to calculate Z-Spread.</param>
+        /// <returns>Bond's Z-Spread value.</returns>
+        public async Task<double> CalculateBondZspread(string isin, YieldCurve curve, double price)
+        {
+            await ConnectEfirAsync();
+            var sec = await _efir.ExGetInstrumentInfo(isin);
+            return CalculateBondZSpread(sec, curve, price);
+        }
+
+        /// <summary>
         ///     Connects to Efir Server if it is not connected.
         /// </summary>
-        private static async Task ConnectEfirAsync()
+        private async Task ConnectEfirAsync()
         {
             if (!_efir.IsLoggedIn)
                 await _efir.LoginAsync();
