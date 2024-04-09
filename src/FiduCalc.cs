@@ -26,6 +26,91 @@ namespace FiduciaryCalculator
         /// </summary>
         public static EfirClient EfirClient => _efir;
 
+        /// <summary>
+        ///     Calculates bond price using secant method. 
+        /// </summary>
+        /// <param name="bond">Efir security (bond).</param>
+        /// <param name="date">Date of pricing.</param>
+        /// <param name="ytm">Yield-to-maturity. If not specified gcurve rates will be used for discounting.</param>
+        /// <exception cref="Exception"> is thrown if bond's <see cref="InstrumentInfo.Flows"/> is null.</exception>
+        /// <returns>Bond price.</returns>
+        public static async Task<double> CalculateBondPrice(string isin, DateTime date, double ytm)
+        {
+            await ConnectEfirAsync();
+            var sec = await _efir.ExGetInstrumentInfo(isin);
+            return CalculateBondPrice(sec, date, ytm);
+        }
+
+        /// <summary>
+        ///     Calculates bond price using provided Z-Spread calue. Calculation performed using secant method.
+        /// </summary>
+        /// <param name="bond">Efir security (bond).</param>
+        /// <param name="zspread">Z-Spread value.</param>
+        /// <param name="pricedate">Date of pricing.</param>
+        /// <exception cref="Exception"> is thrown if bond's <see cref="InstrumentInfo.Flows"/> is null.</exception>
+        /// <returns>Bond price</returns>
+        public static async Task<double> CalculateBondPrice(string isin, YieldCurve curve, double zspread = .0)
+        {
+            await ConnectEfirAsync();
+            var sec = await _efir.ExGetInstrumentInfo(isin);
+            return CalculateBondPrice(sec, curve, zspread);
+        }
+
+        /// <summary>
+        ///     Calculates bond's yield to maturity using secant method.
+        /// </summary>
+        /// <param name="bond">Efir security (bond).</param>
+        /// <param name="date">Date of pricing. If null bond's YTM is calculated as of today.</param>
+        /// <param name="price">Bond's target price that is used to calculate YTM.</param>
+        /// <returns>Bond's YTM value.</returns>
+        public static async Task<double> CalculateBondYtm(string isin, DateTime date, double price)
+        {
+            await ConnectEfirAsync();
+            var sec = await _efir.ExGetInstrumentInfo(isin);
+            return CalculateBondYtm(sec, date, price);
+        }
+
+        /// <summary>
+        ///     Calculates bond duration at date using secant method.
+        /// </summary>
+        /// <param name="bond"><see cref="InstrumentInfo"/> that represents a bond.</param>
+        /// <param name="curve">Zero curve that used for pricing.</param>
+        /// <param name="price">Bond's target price that is used to calculate duration. If null theretical bond's price is used obtained using g-curve for pricedate.</param>
+        /// <returns>Bond's duration value.</returns>
+        public static async Task<double> CalculateBondDuration(string isin, YieldCurve curve, double price)
+        {
+            await ConnectEfirAsync();
+            var sec = await _efir.ExGetInstrumentInfo(isin);
+            return CalculateBondDuration(sec, curve, price);
+        }
+
+        /// <summary>
+        ///     Calculates bond's G-Spread at date using secant method.
+        /// </summary>
+        /// <param name="bond"><see cref="InstrumentInfo"/> that represents a bond.</param>
+        /// <param name="curve">Zero curve that used for pricing.</param>
+        /// <param name="ytm">Known in advance bond's YTM that is used to calculate G-Spread. If null theretical bond's YTM is calculated.</param>
+        /// <returns>Bond's G-Spread value.</returns>
+        public static async Task<double> CalculateBondGspread(string isin, YieldCurve curve, double ytm, double price)
+        {
+            await ConnectEfirAsync();
+            var sec = await _efir.ExGetInstrumentInfo(isin);
+            return CalculateBondGSpread(sec, curve, ytm, price);
+        }
+
+        /// <summary>
+        ///     Calculates bond's Z-Spread at date using secant method.
+        /// </summary>
+        /// <param name="bond"><see cref="InstrumentInfo"/> that represents a bond.</param>
+        /// <param name="curve">Zero curve that used for pricing.</param>
+        /// <param name="price">Known in advance bond's price that is used to calculate G-Spread. If null theretical bond's price is calculated and used to calculate Z-Spread.</param>
+        /// <returns>Bond's Z-Spread value.</returns>
+        public static async Task<double> CalculateBondZspread(string isin, YieldCurve curve, double price)
+        {
+            await ConnectEfirAsync();
+            var sec = await _efir.ExGetInstrumentInfo(isin);
+            return CalculateBondZSpread(sec, curve, price);
+        }
 
         /// <summary>
         ///     Calculates bond price using secant method. 
@@ -34,7 +119,7 @@ namespace FiduciaryCalculator
         /// <param name="date">Date of pricing.</param>
         /// <param name="ytm">Yield-to-maturity. If not specified gcurve rates will be used for discounting.</param>
         /// <exception cref="Exception"> is thrown if bond's <see cref="InstrumentInfo.Flows"/> is null.</exception>
-        /// <returns>Bond price</returns>
+        /// <returns>Bond price.</returns>
         public static double CalculateBondPrice(InstrumentInfo bond, DateTime date, double ytm)
         {
             if (bond.Flows is null)
@@ -105,7 +190,7 @@ namespace FiduciaryCalculator
         /// <param name="curve">Zero curve that used for pricing.</param>
         /// <param name="ytm">Known in advance bond's YTM that is used to calculate G-Spread. If null theretical bond's YTM is calculated.</param>
         /// <returns>Bond's G-Spread value.</returns>
-        public static double CalculateGSpread(InstrumentInfo bond, YieldCurve curve, double ytm, double price)
+        public static double CalculateBondGSpread(InstrumentInfo bond, YieldCurve curve, double ytm, double price)
         {
             double dur = CalculateBondDuration(bond, curve, price);
             double gcurve = curve.GetValueForTenor(dur);
@@ -119,7 +204,7 @@ namespace FiduciaryCalculator
         /// <param name="curve">Zero curve that used for pricing.</param>
         /// <param name="price">Known in advance bond's price that is used to calculate G-Spread. If null theretical bond's price is calculated and used to calculate Z-Spread.</param>
         /// <returns>Bond's Z-Spread value.</returns>
-        public static double CalculateZSpread(InstrumentInfo bond, YieldCurve curve, double price)
+        public static double CalculateBondZSpread(InstrumentInfo bond, YieldCurve curve, double price)
         {
             double x0 = -7500.0, x1 = 500.0, x2 = -1;
             while (Math.Abs(x0 - x2) > 0.1)
@@ -176,14 +261,14 @@ namespace FiduciaryCalculator
                 // metric calc at the moment of offering
                 var ytm_init = CalculateBondYtm(sec, sec.PlacementDate, price_init);
                 var dur_init = CalculateBondDuration(sec, gcurves[sec.PlacementDate], price_init);
-                var gsprd_init = CalculateGSpread(sec, gcurves[sec.PlacementDate], ytm_init, price_init);
-                var zsprd_init = CalculateZSpread(sec, gcurves[sec.PlacementDate], price_init);
+                var gsprd_init = CalculateBondGSpread(sec, gcurves[sec.PlacementDate], ytm_init, price_init);
+                var zsprd_init = CalculateBondZSpread(sec, gcurves[sec.PlacementDate], price_init);
 
                 // metric calc at current moment
                 var ytm_curr = CalculateBondYtm(sec, date, price_curr);
                 var dur_curr = CalculateBondDuration(sec, gcurves[date], price_curr);
-                var gsprd_curr = CalculateGSpread(sec, gcurves[date], ytm_curr, price_curr);
-                var zsprd_curr = CalculateZSpread(sec, gcurves[date], price_curr);
+                var gsprd_curr = CalculateBondGSpread(sec, gcurves[date], ytm_curr, price_curr);
+                var zsprd_curr = CalculateBondZSpread(sec, gcurves[date], price_curr);
 
                 if (vol_curr < 300_000 || ytm_curr > 1 || ytm_init > 1)
                     badQuality = true;                
