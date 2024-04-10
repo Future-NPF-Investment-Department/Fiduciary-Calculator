@@ -48,7 +48,7 @@ namespace FiduciaryCalculator
         /// <param name="pricedate">Date of pricing.</param>
         /// <exception cref="Exception"> is thrown if bond's <see cref="InstrumentInfo.Flows"/> is null.</exception>
         /// <returns>Bond price</returns>
-        public static double CalculatePrice(InstrumentInfo bond, YieldCurve curve, double zspread = .0)
+        public static double CalculatePrice(InstrumentInfo bond, YieldCurve curve, double zspread)
         {
             if (bond.Flows is null)
                 throw new Exception("No bond schedule provided.");
@@ -298,7 +298,7 @@ namespace FiduciaryCalculator
         /// <param name="pricedate">Date of pricing.</param>
         /// <exception cref="Exception"> is thrown if bond's <see cref="InstrumentInfo.Flows"/> is null.</exception>
         /// <returns>Bond price</returns>
-        public async Task<double> CalculatePriceAsync(string isin, YieldCurve curve, double zspread = .0)
+        public async Task<double> CalculatePriceAsync(string isin, YieldCurve curve, double zspread)
         {
             await ConnectEfirAsync();
             var sec = await _efir.ExGetInstrumentInfo(isin);
