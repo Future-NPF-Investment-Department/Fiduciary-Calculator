@@ -56,6 +56,25 @@ namespace FiduciaryCalculator
             return dfs.Sum();
         }
 
+        public static double CalculateCoupon(InstrumentInfo bond, YieldCurve curve, double zspread)
+        {
+            double x0 = -0.1,
+                   x1 = 0.5,
+                   x2 = -0.5;
+
+            while (Math.Abs(x0 - x2) > 1e-10)
+            {
+                UpdateCoupons(x0, in bond);
+                double fx0 = CalculatePrice(bond, curve, zspread);
+                UpdateCoupons(x1, in bond);
+                double fx1 = CalculatePrice(bond, curve, zspread);
+                x2 = x1 - (fx1 - bond.InitialFaceValue) * (x1 - x0) / (fx1 - fx0);
+                x0 = x1;
+                x1 = x2;
+            }
+            return x2;
+        }
+
         /// <summary>
         ///     Calculates bond's yield to maturity using secant method.
         /// </summary>
@@ -273,6 +292,33 @@ namespace FiduciaryCalculator
                 double r = curve.GetValueForTenor(ttm);                                        
                 yield return flow.Payment / Math.Pow((1 + r), ttm) * ttm;                      
             }
+        }
+
+        /// <summary>
+        ///     Updates coupon payments using specified coupon rate.
+        /// </summary>
+        /// <param name="couponRrate">Coupon rate.</param>
+        /// <param name="info">Bond.</param>
+        private static void UpdateCoupons(double couponRrate, in InstrumentInfo info)
+        {
+            double face = info.InitialFaceValue;
+            if(info.Flows == null || !info.Flows.Any())
+                return;
+
+            var flows = info.Flows.ToArray();
+
+            foreach (var fl in flows)
+            {
+                if (fl.PaymentType == FlowType.AMRT)
+                    face -= fl.Payment;
+                
+                if (fl.PaymentType == FlowType.CPN)
+                {
+                    fl.Rate = couponRrate;
+                    fl.Payment = face * couponRrate * fl.PeriodLength.Days / 365.0;
+                }                    
+            }
+            info.Flows = flows;
         }
 
         /// <summary>
