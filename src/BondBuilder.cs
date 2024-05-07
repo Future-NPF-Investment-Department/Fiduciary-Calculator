@@ -31,7 +31,7 @@ namespace FiduciaryCalculator
             _rurs = new();
             _cpns = Enumerable.Empty<Tenor>();
             _amrts = Enumerable.Empty<Tenor>();
-            _start = DateTime.Now.AddDays(-1);
+            _start = DateTime.Now.Date.AddDays(-1);
             _face = 1000;
             _clen = 182;
             _nper = 2;
@@ -47,13 +47,13 @@ namespace FiduciaryCalculator
 
         public BondBuilder WithStartDate(DateTime date)
         {
-            _start = date;
+            _start = date.Date;
             return this;
         }
 
         public BondBuilder WithMaturityDate(DateTime date) 
         {
-            _end = date;
+            _end = date.Date;
             return this;
         }
 
@@ -145,7 +145,7 @@ namespace FiduciaryCalculator
 
             bond.PlacementDate = _start;
             bond.MaturityDate = _end;
-            bond.RatingAggregated = new CreditRatingAggregated(_rurs.ToArray());
+            if (_rurs.Any()) bond.RatingAggregated = new CreditRatingAggregated(_rurs.ToArray());
             bond.Currency = "RUB";
             bond.CouponType = _ctype;
             bond.InitialFaceValue = _face;
