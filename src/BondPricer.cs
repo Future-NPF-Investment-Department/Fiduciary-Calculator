@@ -137,7 +137,7 @@ namespace FiduciaryCalculator
         /// <returns>Bond's Z-Spread value.</returns>
         public static double CalculateZSpread(InstrumentInfo bond, YieldCurve curve, double price)
         {
-            double x0 = -7500.0, x1 = 500.0, x2 = -1;
+            double x0 = -450, x1 = 500, x2 = -1;
             while (Math.Abs(x0 - x2) > 0.1)
             {
                 double fx0 = CalculatePrice(bond, curve, x0);
@@ -160,6 +160,7 @@ namespace FiduciaryCalculator
             DateTime offerDate = DateTime.MaxValue;
             foreach (var flow in flows)
             {
+                if (flow.PaymentType == FlowType.CALL) continue;
                 if (flow.EndDate < date) continue;
                 if (flow.EndDate > offerDate) yield break;
                 if (flow.PaymentType == PUT) offerDate = flow.EndDate;
@@ -181,6 +182,7 @@ namespace FiduciaryCalculator
             DateTime offerDate = DateTime.MaxValue;
             foreach (var flow in flows)
             {
+                if (flow.PaymentType == FlowType.CALL) continue;
                 if (flow.EndDate < curve.Date) continue;
                 if (flow.EndDate > offerDate) yield break;
                 if (flow.PaymentType == PUT) offerDate = flow.EndDate;
@@ -202,6 +204,7 @@ namespace FiduciaryCalculator
             DateTime offerDate = DateTime.MaxValue;
             foreach (var flow in flows)
             {
+                if (flow.PaymentType == FlowType.CALL) continue;
                 if (flow.EndDate < curve.Date) continue;
                 if (flow.EndDate > offerDate) yield break;
                 if (flow.PaymentType == PUT) offerDate = flow.EndDate;
