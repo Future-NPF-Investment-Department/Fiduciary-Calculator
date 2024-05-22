@@ -131,6 +131,8 @@ namespace FiduciaryCalculator
         public InstrumentInfo Build()
         {
             var bond = new InstrumentInfo();
+            bond.AssetClass = InstrumentType.BOND;
+
 
             if (!_cpns.Any())
                 _cpns = Enumerable.Repeat(_clen, _nper);
