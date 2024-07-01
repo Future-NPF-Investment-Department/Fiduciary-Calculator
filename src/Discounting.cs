@@ -30,14 +30,13 @@ namespace FiduciaryCalculator
         public DiscountingEntry this[int i] => _entries[i];    
         public YieldCurve Curve => _curve;  
         public int Length => _entries.Count;
-        public bool Fetched { get; private set; }
 
-        public static Discounting New(YieldCurve curve, int ncpn, Tenor tenor)
+        public static Discounting New(YieldCurve curve, int ncpn, Tenor tenor, double initialFace)
         {
-            var disc = new Discounting(curve, 1000);
+            var disc = new Discounting(curve, initialFace);
             for (int i = 0; i < ncpn - 1; i++)
                 disc.AddEntry(tenor, .0, 0);
-            disc.AddEntry(tenor, .0, 1000);
+            disc.AddEntry(tenor, .0, initialFace);
             return disc;
         }
 
@@ -118,7 +117,7 @@ namespace FiduciaryCalculator
                     return de;
                 });
 
-            return new Discounting(disc.ToList(), curve) { Fetched = true };
+            return new Discounting(disc.ToList(), curve);
         }
 
         public Discounting AddEntry(Tenor tenor, double rate, double facePmt)
