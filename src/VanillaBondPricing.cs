@@ -31,6 +31,16 @@ namespace FiduciaryCalculator
             _flags = DefinePricingFlags();
         }
 
+        //public VanillaBondPricing(Discounting discounting, double? price, double? ytm, double? zspread)
+        //{
+        //    _price = price;
+        //    _yield = ytm;
+        //    _zsprd = zspread;
+        //    _disc = discounting;
+        //    _flags = DefinePricingFlags();
+        //    _flags |= CPNR;
+        //}
+
 
         public BondPricingResults Results => _results;
 
@@ -149,13 +159,13 @@ namespace FiduciaryCalculator
             {
                 double t = (d.Date - _disc.Curve.Date).Days / 365.0;
                 double z = zsprd == null ? d.Zspread : zsprd.Value;
-                double c = cpnr == null ? d.InterestRate : cpnr.Value;
+                double c = cpnr == null ? (d.InterestRate ?? .0) : cpnr.Value;
                 double r = ytm == null ? _disc.Curve.GetValueForTenor(t) : ytm.Value;
                 double df = 1 / Math.Pow(1 + r + z / 10_000, t);
 
                 d.InterestRate = c;
                 d.InterestValue = d.FaceValue * c / 365.0 * d.Tenor.Days;
-                d.TotalValue = d.InterestValue + d.AmortValue;
+                d.TotalValue = (d.InterestValue ?? .0) + d.AmortValue;
                 d.TimeToFlowDate = t;
                 d.DiscountRate = r;
                 d.Zspread = z;
@@ -177,7 +187,7 @@ namespace FiduciaryCalculator
             if (_price != null)
                 flags |= 1;
 
-            if (_cpnrate != null || _disc.Fetched)
+            if (_cpnrate != null || _disc.All(d => d.InterestRate.HasValue))
                 flags |= 2;
 
             if (_yield != null || _zsprd != null)

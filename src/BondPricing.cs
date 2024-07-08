@@ -20,6 +20,8 @@ namespace FiduciaryCalculator
         public static VanillaBondPricing NewVanillaPricing(Discounting discounting, double? price, double? ytm, double? zspread, double? couponRate)
             => new(discounting, price, ytm, zspread, couponRate);
 
+        //public static VanillaBondPricing NewVanillaPricing(Discounting discounting, double? price, double? ytm, double? zspread)
+        //    => new(discounting, price, ytm, zspread);
 
         public static double Solve(BondPricingFunction func, double x0, double x1)
         {            

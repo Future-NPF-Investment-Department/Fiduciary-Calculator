@@ -59,7 +59,7 @@ namespace FiduciaryCalculator
             // get starting face value
             double face = flowsIncoming
                 .Where(f => f.PaymentType == AMRT || f.PaymentType == MTY)
-                .Select(f => f.Payment)
+                .Select(f => f.Payment ?? .0)
                 .Sum();
 
             // get next put date
@@ -81,21 +81,21 @@ namespace FiduciaryCalculator
                     .FirstOrDefault(new Tenor(0));
 
                     // get cpn rate
-                    double cpnr = g.Where(f => f.PaymentType == CPN)
+                    double? cpnr = g.Where(f => f.PaymentType == CPN)
                     .Select(f => f.Rate)
-                    .DefaultIfEmpty(0)
+                    .DefaultIfEmpty(null)
                     .Sum();
 
                     // get cpn pmt
-                    double cpnv = g.Where(f => f.PaymentType == CPN)
+                    double? cpnv = g.Where(f => f.PaymentType == CPN)
                     .Select(f => f.Payment)
-                    .DefaultIfEmpty(0)
+                    .DefaultIfEmpty(null)
                     .Sum();
 
                     // get amrt pmt
                     double amrt = g.Where(f => f.PaymentType != CPN)
-                    .Select(f => f.Payment)
-                    .DefaultIfEmpty(0)
+                    .Select(f => f.Payment ?? .0)
+                    .DefaultIfEmpty(.0)
                     .Sum();
 
                     // new DiscountingEntry
@@ -107,7 +107,7 @@ namespace FiduciaryCalculator
                         InterestRate = cpnr,
                         InterestValue = cpnv,
                         AmortValue = amrt,
-                        TotalValue = cpnv + amrt
+                        TotalValue = (cpnv ?? .0) + amrt
                     };
 
                     // adjusting face
@@ -120,10 +120,10 @@ namespace FiduciaryCalculator
             return new Discounting(disc.ToList(), curve);
         }
 
-        public Discounting AddEntry(Tenor tenor, double rate, double facePmt)
+        public Discounting AddEntry(Tenor tenor, double? rate, double facePmt)
         {
             _date += tenor;
-            var cpnpmt = _face * rate * tenor.Years;
+            double? cpnpmt = _face * rate * tenor.Years;
             var entry = new DiscountingEntry()
             {
                 FaceValue = _face,
@@ -133,7 +133,7 @@ namespace FiduciaryCalculator
                 InterestRate = rate,
                 InterestValue = cpnpmt,
                 AmortValue = facePmt,
-                TotalValue = cpnpmt + facePmt
+                TotalValue = cpnpmt ?? .0 + facePmt
             };
             _face -= facePmt;
             _entries.Add(entry);

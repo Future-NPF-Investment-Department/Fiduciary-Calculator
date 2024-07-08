@@ -12,9 +12,9 @@ namespace FiduciaryCalculator
 
         public double TimeToFlowDate { get; set; }
 
-        public double InterestRate { get; set; }
+        public double? InterestRate { get; set; }
 
-        public double InterestValue { get; set; }
+        public double? InterestValue { get; set; }
 
         public double AmortValue { get; set; }
 
